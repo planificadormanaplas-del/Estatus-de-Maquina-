@@ -17,6 +17,8 @@
  *   - Las hojas 01-14 ya no apuntan a filas fijas: buscan en el Maestro
  *     las filas cuya OP sea igual a su celda H4 (No:). Por eso se pueden
  *     agregar y borrar filas sin romper nada.
+ *   - Las filas vacías quedan en blanco: el formato (verde, bordes…) se
+ *     pone solo al crear la orden y se quita al borrarla o vaciar.
  *   - La columna Q es UND/DÍA = Und/Hora × 10 h (turno de 6:00 a 16:00).
  *     También es fórmula del encabezado (antes era "Volver al Índice").
  *
@@ -148,7 +150,10 @@ function ordenDeCeldaActiva(ui, sheet, accion) {
 function asegurarReserva(sheet, filasNecesarias) {
   var libres = sheet.getMaxRows() - ultimaFilaConDatos(sheet);
   var faltan = (filasNecesarias || 0) + FILAS_DE_RESERVA - libres;
-  if (faltan > 0) sheet.insertRowsAfter(sheet.getMaxRows(), faltan);
+  if (faltan > 0) {
+    sheet.insertRowsAfter(sheet.getMaxRows(), faltan);
+    limpiarFormatoReserva(sheet);
+  }
 }
 
 // Borra filas del Maestro sin dejarlo nunca sin filas debajo del encabezado.
@@ -158,6 +163,7 @@ function eliminarFilas(sheet, fila, n) {
   }
   sheet.deleteRows(fila, n);
   asegurarReserva(sheet, 0);
+  limpiarFormatoReserva(sheet);
 }
 
 // Escribe una columna con el mismo valor en n filas.
@@ -165,6 +171,65 @@ function escribirColumna(sheet, fila, col, n, valor) {
   var m = [];
   for (var i = 0; i < n; i++) m.push([valor]);
   sheet.getRange(fila, col, n, 1).setValues(m);
+}
+
+// ---------- Formato de las filas ----------
+
+// Las filas vacías del Maestro quedan en blanco. Al crear una orden, sus
+// filas reciben este formato (el mismo del Maestro original). Una entrada
+// por columna, de A a T.
+var VERDE = '#D9F2D9', GRIS = '#EDEDED', CREMA = '#EAF6FC';
+var FORMATO_COLUMNAS = [
+  { fondo: VERDE, alinear: 'center', numero: '0',        tam: 10 }, // A OP
+  { fondo: VERDE, alinear: 'center', numero: '@',        tam: 10 }, // B MAQ
+  { fondo: VERDE, alinear: 'center', numero: '0',        tam: 10 }, // C TON
+  { fondo: VERDE, alinear: 'center', numero: '@',        tam: 11 }, // D Sku
+  { fondo: VERDE, alinear: 'center', numero: '@',        tam: 11 }, // E Componente
+  { fondo: VERDE, alinear: 'left',   numero: '@',        tam: 10 }, // F Producto
+  { fondo: VERDE, alinear: 'left',   numero: '@',        tam: 10 }, // G Material
+  { fondo: GRIS,  alinear: 'left',   numero: '@',        tam: 9  }, // H Componentes
+  { fondo: VERDE, alinear: 'right',  numero: '#,##0.00', tam: 10 }, // I Cantidad
+  { fondo: VERDE, alinear: 'left',   numero: '@',        tam: 9  }, // J Color
+  { fondo: VERDE, alinear: 'right',  numero: '#,##0.00', tam: 10 }, // K Sacos
+  { fondo: VERDE, alinear: 'right',  numero: '#,##0.00', tam: 10 }, // L Sacos kg
+  { fondo: VERDE, alinear: 'right',  numero: '#,##0.00', tam: 10 }, // M Ciclo
+  { fondo: VERDE, alinear: 'right',  numero: '#,##0.00', tam: 10 }, // N Peso
+  { fondo: VERDE, alinear: 'right',  numero: '#,##0.00', tam: 10 }, // O Cav.
+  { fondo: GRIS,  alinear: 'right',  numero: '#,##0',    tam: 11 }, // P Und/Hora
+  { fondo: GRIS,  alinear: 'right',  numero: '#,##0',    tam: 11 }, // Q Und/Día
+  { fondo: null,  alinear: 'center', numero: '@',        tam: 11 }, // R ¿Importante?
+  { fondo: CREMA, alinear: 'center', numero: '#,##0',    tam: 10 }, // S Cantidad final
+  { fondo: null,  alinear: 'center', numero: '@',        tam: 11 }  // T Material recomendado
+];
+
+// Da el formato de orden a n filas (desde "fila").
+function aplicarFormatoFilas(sheet, fila, n) {
+  var rango = sheet.getRange(fila, 1, n, FORMATO_COLUMNAS.length);
+  var repetir = function (campo) {
+    var fila1 = FORMATO_COLUMNAS.map(function (f) { return f[campo]; });
+    var m = [];
+    for (var i = 0; i < n; i++) m.push(fila1.slice());
+    return m;
+  };
+  rango.setBackgrounds(repetir('fondo'))
+    .setHorizontalAlignments(repetir('alinear'))
+    .setNumberFormats(repetir('numero'))
+    .setFontSizes(repetir('tam'))
+    .setFontFamily('Arial')
+    .setFontWeight('bold')
+    .setVerticalAlignment('middle')
+    .setWrap(true)
+    .setBorder(true, true, true, true, true, true);
+}
+
+// Deja en blanco (sin formato ni listas) todas las filas debajo de la última orden.
+function limpiarFormatoReserva(sheet) {
+  var ultima = ultimaFilaConDatos(sheet);
+  var resto = sheet.getMaxRows() - ultima;
+  if (resto < 1) return;
+  var rango = sheet.getRange(ultima + 1, 1, resto, sheet.getMaxColumns());
+  rango.clearFormat();
+  rango.clearDataValidations();
 }
 
 // ---------- Número de OP ----------
@@ -518,6 +583,7 @@ function insertarOrden(sheet, op, n, maquina, sku, componente, importante) {
 // Escribe OP, Máquina, Sku, Componente (con su lista) e Importante en n
 // filas, y deja vacías las demás columnas de entrada.
 function llenarFilasDeOrden(sheet, fila, n, op, maquina, sku, componente, importante) {
+  aplicarFormatoFilas(sheet, fila, n);
   for (var c = 0; c < COLUMNAS_ENTRADA.length; c++) {
     sheet.getRange(fila, COLUMNAS_ENTRADA[c], n, 1).clearContent();
   }
@@ -740,6 +806,7 @@ function compactarOrdenes(ss, sheet) {
       sheet.getRange(primeraFila + totalFilas, COLUMNAS_ENTRADA[c2], sobran, 1).clearContent();
     }
     sheet.getRange(primeraFila + totalFilas, COL_COMPONENTE, sobran, 1).clearDataValidations();
+    limpiarFormatoReserva(sheet);
   }
 
   // Listas de Componente según el SKU de cada orden.
