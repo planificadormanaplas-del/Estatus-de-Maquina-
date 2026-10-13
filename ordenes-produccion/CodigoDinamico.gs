@@ -175,9 +175,12 @@ function escribirColumna(sheet, fila, col, n, valor) {
 
 // ---------- Formato de las filas ----------
 
-// Las filas vacías del Maestro quedan en blanco. Al crear una orden, sus
-// filas reciben este formato (el mismo del Maestro original). Una entrada
-// por columna, de A a T.
+// Las filas vacías del Maestro quedan en blanco. El COLOR de fondo lo pone
+// solo un formato condicional de la hoja: verde/gris/crema si la fila tiene
+// número de OP en la columna A, blanco si no (aunque se borre a mano con
+// Suprimir). Al crear una orden, el código pone además bordes, letra y
+// formato de números. Una entrada por columna, de A a T ("fondo" queda
+// solo como referencia de los colores de la regla condicional).
 var VERDE = '#D9F2D9', GRIS = '#EDEDED', CREMA = '#EAF6FC';
 var FORMATO_COLUMNAS = [
   { fondo: VERDE, alinear: 'center', numero: '0',        tam: 10 }, // A OP
@@ -211,7 +214,7 @@ function aplicarFormatoFilas(sheet, fila, n) {
     for (var i = 0; i < n; i++) m.push(fila1.slice());
     return m;
   };
-  rango.setBackgrounds(repetir('fondo'))
+  rango.setBackground(null)
     .setHorizontalAlignments(repetir('alinear'))
     .setNumberFormats(repetir('numero'))
     .setFontSizes(repetir('tam'))

@@ -63,3 +63,4 @@ Qué hace el código v23:
 - Columna Q: se quitó "⟵ Volver al Índice" (no se usaba) y ahora es **UND/DÍA** = Und/Hora × 10 h (turno de 6:00 a 16:00), calculada sola desde el encabezado.
 - `CodigoDinamico.gs` ya no escribe en la columna Q.
 - Filas vacías del Maestro en blanco (sin formato). `CodigoDinamico.gs` pone el formato verde/gris con bordes solo en las filas de cada orden al crearla o al agregar un color, y deja en blanco las filas que quedan libres al borrar, organizar o vaciar.
+- El color de las filas ahora es un formato condicional (`=$A2<>""`): verde/gris/crema solo si la fila tiene OP. Si se borran los datos a mano (Suprimir), la fila vuelve a verse en blanco.
