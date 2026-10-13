@@ -68,3 +68,14 @@ Qué hace el código v23:
 - "Guardar copia en Drive" guarda la copia directo en la carpeta **Seguimiento** (si no puede, la deja junto al original y avisa).
 - Se recuperaron las listas desplegables del Maestro (Máquina, Sku, Material, Cantidad ≥ 0, Color, ¿Importante?) en las filas con órdenes; el código las pone en cada orden nueva y las quita de las filas vacías.
 - Corregido: la máquina se guardaba como texto y TON salía vacío. Ahora se guarda como número.
+
+### Catálogos de colores y materia prima (desde el inventario del 11/10/2026)
+- Nueva hoja **Inventario MP**: el inventario semanal tal cual (Código, Nombre, Saldo Inicial, Compras, Consumo, Saldo Final). Cada semana se pega el nuevo desde la fila 5.
+- Nueva hoja **Colores** (69): nombre del color + código real + tipo (Masterbatch / PP cargado / Chemiton) + descripción, existencia y estado (OK / BAJO < 500 kg / SIN EXISTENCIA) automáticos. La lista es "COLOR (últimos 4 dígitos)", p. ej. "AZUL REY (0835)", para distinguir colores repetidos.
+- Nueva hoja **Resinas** (36): código, grado/homotipo, familia (PEAD, PP homo, PP copo, PEBD, PS…), existencia y estado.
+- Problema encontrado en "Hoja 1": los códigos de color estaban corridos una fila (ej. AMARILLO CLARO aparecía como 0705 y es 02-04-0102). Ya no se usa.
+- Maestro: la lista de Color ahora sale de "Colores". Hojas 01–14: el CÓDIGO del color se busca en "Colores" (código exacto del masterbatch elegido).
+
+### Código
+- Máximo 30 OP (y 8 colores por OP).
+- Si se pegan datos en una orden, las listas desplegables se restauran solas; botón "🧩 Reparar listas desplegables".

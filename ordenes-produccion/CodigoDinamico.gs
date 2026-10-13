@@ -22,6 +22,10 @@
  *   - "Gestionar → Borrar" pregunta si borrar SOLO la fila (color) donde
  *     estás o la orden completa.
  *   - "Guardar copia en Drive" la guarda directo en la carpeta Seguimiento.
+ *   - Máximo 30 OP y 8 colores por OP.
+ *   - La lista de Color sale de la hoja "Colores" (catálogo con código).
+ *   - Si pegas datos en una orden, las listas desplegables se vuelven a
+ *     poner solas; también está el botón "🧩 Reparar listas desplegables".
  *   - La columna Q es UND/DÍA = Und/Hora × 10 h (turno de 6:00 a 16:00).
  *     También es fórmula del encabezado (antes era "Volver al Índice").
  *
@@ -43,6 +47,7 @@ function onOpen() {
     .addItem('🔧 Gestionar esta orden (agregar / borrar)', 'gestionarOrden')
     .addItem('🩹 Borrar SIN guardar en Historial (para corregir)', 'borrarOrdenSinHistorial')
     .addItem('🔄 Organizar (cerrar huecos en la numeración)', 'organizarOrdenes')
+    .addItem('🧩 Reparar listas desplegables', 'repararListas')
     .addSeparator()
     .addItem('📁 Guardar copia de hoy en Drive', 'guardarCopiaEnDrive')
     .addSeparator()
@@ -58,6 +63,7 @@ var HOJA_MAQ_TONS = 'Maq y Tons ';
 var HOJA_LISTA_PRODUCTOS = 'Lista de Productos';
 var FILA_INICIO = 2;          // primera fila de datos
 var MAX_COLORES = 8;          // colores por orden (renglones de las hojas 01-14)
+var MAX_OP = 30;              // número máximo de órdenes (OP 1 a 30)
 var HOJAS_DE_ORDEN = 14;      // OP 1-14 tienen hoja propia (01-14)
 var FILAS_DE_RESERVA = 50;    // filas en blanco que se dejan siempre al final
 var COL_OP = 1;               // A = OP
@@ -236,7 +242,7 @@ var LISTAS_FILA = [
   { col: COL_MAQ,        rango: ['Maq y Tons ', 'A4:A'] },
   { col: COL_SKU,        rango: ['Lista de Productos', 'B2:B'] },
   { col: COL_MATERIAL,   rango: ['Materia Prima ', 'F3:F'] },
-  { col: COL_COLOR,      rango: ['Hoja 1', 'B2:B'] },
+  { col: COL_COLOR,      rango: ['Colores', 'A2:A'] },   // catálogo de colores (nombre + código)
   { col: COL_IMPORTANTE, lista: ['Sí', 'No'] }
 ];
 
@@ -273,9 +279,10 @@ function limpiarFormatoReserva(sheet) {
 function siguienteOPLibre(ordenes, excluir) {
   var usados = {};
   ordenes.forEach(function (o) { usados[o.op] = true; });
-  for (var n = 1; ; n++) {
+  for (var n = 1; n <= MAX_OP; n++) {
     if (!usados[n] && !excluir[n]) return n;
   }
+  return null; // ya están usadas las 30
 }
 
 // Pregunta qué número de OP usar. 0 o en blanco = el siguiente libre.
@@ -285,6 +292,10 @@ function pedirNumeroOP(ui, sheet, excluir) {
   while (true) {
     var ordenes = leerOrdenes(sheet);
     var sugerido = siguienteOPLibre(ordenes, excluir);
+    if (sugerido === null) {
+      ui.alert('Ya hay ' + MAX_OP + ' órdenes (el máximo). Borra o termina alguna antes de crear otra.');
+      return null;
+    }
     var resp = ui.prompt(
       'Número de orden (OP)',
       '¿Qué número de OP quieres usar? Escribe 0, o déjalo en blanco, para usar el siguiente libre (' + sugerido + ').\n' +
@@ -297,8 +308,8 @@ function pedirNumeroOP(ui, sheet, excluir) {
     if (texto === '' || texto === '0') return sugerido;
 
     var numero = parseInt(texto, 10);
-    if (isNaN(numero) || texto !== numero.toString() || numero < 1) {
-      ui.alert('Escribe un número de OP (1, 2, 3…), o 0 / en blanco para automático.');
+    if (isNaN(numero) || texto !== numero.toString() || numero < 1 || numero > MAX_OP) {
+      ui.alert('Escribe un número de OP del 1 al ' + MAX_OP + ', o 0 / en blanco para automático.');
       continue;
     }
     if (excluir[numero]) {
@@ -1150,6 +1161,50 @@ function borrarHistorial() {
   ss.toast('El Historial quedó vacío.', '🗑️ Listo', 5);
 }
 
+// Vuelve a poner las listas desplegables (y la del Componente según su SKU)
+// en las filas indicadas que tengan número de OP.
+function restaurarListasEnFilas(sheet, filaIni, filaFin) {
+  var n = filaFin - filaIni + 1;
+  var datos = sheet.getRange(filaIni, 1, n, COL_COMPONENTE).getValues();
+  var cache = {};
+  for (var i = 0; i < n; i++) {
+    if (datos[i][COL_OP - 1] === '') continue;
+    var fila = filaIni + i;
+    aplicarListasFilas(sheet, fila, 1);
+    var sku = datos[i][COL_SKU - 1];
+    if (sku !== '' && !esPlaceholderSku(sku)) {
+      var clave = sku.toString();
+      if (!cache[clave]) cache[clave] = opcionesDeComponente(clave);
+      aplicarValidacionComponente(sheet.getRange(fila, COL_COMPONENTE), cache[clave]);
+    }
+  }
+}
+
+// ¿Alguna celda editada, de una columna con lista, se quedó sin su lista?
+function faltaAlgunaLista(rango) {
+  var conLista = {};
+  LISTAS_FILA.forEach(function (l) { conLista[l.col] = true; });
+  conLista[COL_CANTIDAD] = true;
+  var reglas = rango.getDataValidations();
+  var col0 = rango.getColumn();
+  for (var i = 0; i < reglas.length; i++) {
+    for (var j = 0; j < reglas[i].length; j++) {
+      if (conLista[col0 + j] && !reglas[i][j]) return true;
+    }
+  }
+  return false;
+}
+
+function repararListas() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(HOJA_MAESTRO);
+  if (!sheet) { SpreadsheetApp.getUi().alert('No encontré la hoja "' + HOJA_MAESTRO + '".'); return; }
+  var ultima = ultimaFilaConDatos(sheet);
+  if (ultima >= FILA_INICIO) restaurarListasEnFilas(sheet, FILA_INICIO, ultima);
+  limpiarFormatoReserva(sheet);
+  ss.toast('Las listas desplegables quedaron puestas en todas las filas con orden.', '🧩 Listo', 6);
+}
+
 // ---------- Automático: filtrar Componentes según el SKU (si editas directo en la hoja) ----------
 
 function onEdit(e) {
@@ -1159,13 +1214,17 @@ function onEdit(e) {
 
   var colIni = rango.getColumn();
   var colFin = rango.getLastColumn();
+  var filaIni = Math.max(rango.getRow(), FILA_INICIO);
+  var filaFin = Math.min(rango.getLastRow(), sheet.getMaxRows());
+  if (filaIni > filaFin || filaFin - filaIni > 50) return; // pegados enormes: no lo hacemos en vivo
+
+  // Al pegar (Ctrl+V) Google borra la lista desplegable de esas celdas:
+  // si a alguna celda editada le falta su lista, se vuelven a poner.
+  if (faltaAlgunaLista(rango)) restaurarListasEnFilas(sheet, filaIni, filaFin);
+
   var tocaSku = colIni <= COL_SKU && COL_SKU <= colFin;
   var tocaComp = colIni <= COL_COMPONENTE && COL_COMPONENTE <= colFin;
   if (!tocaSku && !tocaComp) return;
-
-  var filaIni = Math.max(rango.getRow(), FILA_INICIO);
-  var filaFin = Math.min(rango.getLastRow(), sheet.getMaxRows());
-  if (filaFin - filaIni > 50) return; // pegados enormes: no lo hacemos en vivo
 
   for (var fila = filaIni; fila <= filaFin; fila++) {
     if (tocaSku) {
