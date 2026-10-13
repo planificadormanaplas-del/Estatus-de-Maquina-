@@ -57,3 +57,8 @@ Qué hace el código v23:
 - Organizar → ordena por OP y renumera 1, 2, 3… moviendo Tipo de Material y Observaciones.
 - Ya no hay límite de 30 órdenes; solo las OP 1–14 tienen hoja de impresión (avisa si eliges una mayor).
 - Se quitaron "Colorear OP" y "Reparar fórmulas" (ya no hacen falta).
+
+### Ajustes a la copia (después de la prueba)
+- Se quitó el fondo azul de la columna OP y se devolvió el formato original a las filas del Maestro: verde claro en datos, gris en Componentes / Und-Hora / Und-Día, crema en Cantidad Final, bordes y Arial negrita.
+- Columna Q: se quitó "⟵ Volver al Índice" (no se usaba) y ahora es **UND/DÍA** = Und/Hora × 10 h (turno de 6:00 a 16:00), calculada sola desde el encabezado.
+- `CodigoDinamico.gs` ya no escribe en la columna Q.
