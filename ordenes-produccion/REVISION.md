@@ -86,3 +86,9 @@ Qué hace el código v23:
 - Nombres de color largos se extienden a la columna COLORANTE en vez de cortarse.
 - Se quitaron celdas combinadas y fondo blanco sobrantes en I:K (vacías) para que la impresión sea solo A:H.
 - Cuadrícula oculta en todas.
+
+### Colores: tipo visible y VERDE PASTEL
+- La lista de color ahora indica el tipo: "AZUL REY (MB 0835)", "AZUL REY (CARGADO 0622)", "AMARILLO (CHEMITON 0006)".
+- La columna Tipo de "Colores" se colorea: azul = Masterbatch, naranja = PP cargado, morado = Chemiton.
+- Agregado VERDE PASTEL sin código: aparece como "VERDE PASTEL (SIN CÓDIGO)" con estado "SIN CÓDIGO" hasta que se escriba su código en la columna C.
+- Se actualizaron los colores ya elegidos en el Maestro al nombre nuevo.
