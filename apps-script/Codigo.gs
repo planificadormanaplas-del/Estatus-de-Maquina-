@@ -34,10 +34,6 @@ function actualizarTodo() {
 
     actualizarResumenColores();
     actualizarResumenMateriales();
-    // Los resúmenes se reordenan en cada corrida, así que el cruce de
-    // inventario se vuelve a calcular aquí mismo; si no, la existencia de
-    // un material quedaba pegada al renglón de otro.
-    actualizarInventarioCore();
     actualizarDashboard();
     SpreadsheetApp.flush();
     actualizarPortada();
@@ -46,7 +42,6 @@ function actualizarTodo() {
       '- Filas reparadas (les faltaban fórmulas): ' + reparadas + '\n' +
       '- Resumen Consumo (colorante): reconstruido\n' +
       '- Consumo por Material: reconstruido\n' +
-      '- Cruce de inventario (Días de Cobertura): recalculado\n' +
       '- Dashboard: reconstruido\n' +
       '- Portada (Inicio): actualizada';
 
@@ -142,13 +137,9 @@ function actualizarResumenColores() {
   var totalKg = codigos.reduce(function (s, c) { return s + datos[c].kg; }, 0);
   var totalN = codigos.reduce(function (s, c) { return s + datos[c].n; }, 0);
 
-  // limpiar filas anteriores (deja margen amplio). Se limpian también H a K
-  // (cruce de inventario) porque el orden de los colores cambia en cada
-  // corrida; actualizarInventarioCore() las vuelve a llenar en el orden nuevo.
-  resumen.getRange(3, 1, 300, 11).clearContent();
+  // limpiar filas anteriores (deja margen amplio)
+  resumen.getRange(3, 1, 300, 7).clearContent();
   resumen.getRange(3, 1, 300, 7).setBackground(null);
-  // columna A como texto: si no, "0855" se guarda como el número 855
-  resumen.getRange(3, 1, 300, 1).setNumberFormat('@');
 
   var r = 3, acumulado = 0;
   var ABC_COLOR = { A: '#D9EAD3', B: '#FFF2CC', C: '#F4F4F4' };
@@ -261,10 +252,7 @@ function actualizarResumenMateriales() {
   var materiales = Object.keys(datos).sort(function (a, b) { return datos[b].kg - datos[a].kg; });
   var totalKg = materiales.reduce(function (s, m) { return s + datos[m].kg; }, 0);
 
-  // A a I: también se limpia el cruce de inventario (G, H, I) porque el orden
-  // de los materiales cambia en cada corrida; actualizarInventarioCore() lo
-  // vuelve a llenar en el orden nuevo.
-  resumen.getRange(3, 1, 300, 9).clearContent();
+  resumen.getRange(3, 1, 300, 6).clearContent();
   resumen.getRange(3, 1, 300, 6).setBackground(null);
   resumen.getRange(3, 10, 300, 2).clearContent();
   resumen.getRange(2, 10, 1, 2).setValues([['Nombre Descriptivo', 'Familia']])
@@ -508,19 +496,16 @@ function actualizarDashboard() {
   var d = calcularDatosDashboard();
 
   // --- KPIs (fila 6, columnas A,C,E,G,I,K en pares) ---
-  // Se escriben como números, no como texto con toLocaleString(): el servidor
-  // de Google formatea "49503" como "49.503" y la hoja (en_US) lo leía como
-  // 49,503 kg -> el Dashboard mostraba "50" en vez de 49,503.
   var kpiValues = [
-    d.totalOrdenes,
-    d.diasDistintos,
-    d.productosCount,
-    Math.round(d.totalKgMp),
-    Math.round(d.totalKgColor),
-    Math.round(d.totalKgMp + d.totalKgColor)
+    d.totalOrdenes.toLocaleString(),
+    String(d.diasDistintos),
+    String(d.productosCount),
+    Math.round(d.totalKgMp).toLocaleString(),
+    Math.round(d.totalKgColor).toLocaleString(),
+    Math.round(d.totalKgMp + d.totalKgColor).toLocaleString()
   ];
   for (var k = 0; k < 6; k++) {
-    ws.getRange(6, 1 + k * 2).setNumberFormat('#,##0').setValue(kpiValues[k]);
+    ws.getRange(6, 1 + k * 2).setValue(kpiValues[k]);
   }
 
   // --- Tablas de apoyo para las 3 graficas (misma posicion que el diseno original) ---
@@ -656,12 +641,6 @@ function importarDesdeCarpetaCore() {
     }
     var fechaTexto = (fecha.dia < 10 ? '0' + fecha.dia : fecha.dia) + '/' +
       (fecha.mes < 10 ? '0' + fecha.mes : fecha.mes) + '/' + fecha.anio;
-    // Lo que se ESCRIBE en la hoja va en formato año-mes-día. Si se escribe
-    // "08/10/2026", la hoja (en_US, mes/día) lo guarda como 10 de agosto, y
-    // "29/09/2026" queda como texto porque no existe el mes 29.
-    // fechaTexto (día/mes) se sigue usando solo para comparar órdenes.
-    var fechaISO = fecha.anio + '-' + (fecha.mes < 10 ? '0' + fecha.mes : fecha.mes) + '-' +
-      (fecha.dia < 10 ? '0' + fecha.dia : fecha.dia);
 
     var libroExterno;
     try {
@@ -724,7 +703,7 @@ function importarDesdeCarpetaCore() {
       existentes[key] = { row: null, firma: firmaNueva }; // la fila real se sabe al escribirla
       filasEsteArchivo++;
       nuevasFilas.push([
-        fechaISO, opActual, fila[1], fila[3], fila[4], fila[5], fila[6], fila[7],
+        fechaTexto, opActual, fila[1], fila[3], fila[4], fila[5], fila[6], fila[7],
         fila[8], fila[9], fila[10], fila[11], fila[12], fila[13], fila[14], '', ''
       ]);
     }
@@ -748,7 +727,6 @@ function importarDesdeCarpetaCore() {
     // 1) Escribimos las filas nuevas al final (posición segura y simple)
     var filaDestino = sh.getLastRow() + 1;
     sh.getRange(filaDestino, 1, nuevasFilas.length, 17).setValues(nuevasFilas);
-    sh.getRange(filaDestino, 1, nuevasFilas.length, 1).setNumberFormat('dd/mm/yyyy');
     // Copiamos la fórmula de la fila 5 hacia TODAS las filas nuevas en una sola llamada
     // (en vez de una llamada por fila, que era mucho más lento con muchas filas nuevas)
     var plantilla = sh.getRange(5, 18, 1, 13);
@@ -763,13 +741,9 @@ function importarDesdeCarpetaCore() {
   }
   actualizarResumenColores();
   actualizarResumenMateriales();
-  actualizarInventarioCore();
   actualizarDashboard();
   var filasConError = detectarFilasConError();
   SpreadsheetApp.flush();
-  // Antes la importación no actualizaba "Inicio", y la portada se quedaba
-  // con los números en 0 del último "Borrar".
-  actualizarPortada();
 
   var mensaje = 'Importación desde la carpeta de Drive — ' + new Date().toLocaleString() + '\n' +
     '- Archivos revisados: ' + archivosProcesados + '\n' +
@@ -811,11 +785,8 @@ function importarDesdeCarpetaAutomatico() {
 
 function formatearFecha(valor) {
   if (Object.prototype.toString.call(valor) === '[object Date]') {
-    // Con la zona horaria de la hoja (no la del script): si las dos zonas no
-    // coinciden, una fecha a medianoche podía leerse como el día anterior y la
-    // orden se volvía a importar como si fuera nueva.
-    var zona = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
-    return Utilities.formatDate(valor, zona, 'dd/MM/yyyy');
+    var dia = valor.getDate(), mes = valor.getMonth() + 1, anio = valor.getFullYear();
+    return (dia < 10 ? '0' + dia : dia) + '/' + (mes < 10 ? '0' + mes : mes) + '/' + anio;
   }
   return String(valor).trim();
 }
@@ -1268,7 +1239,6 @@ function repararPlantillaSeptiembre() {
   SpreadsheetApp.flush();
   actualizarResumenColores();
   actualizarResumenMateriales();
-  actualizarInventarioCore();
   actualizarDashboard();
 
   return faltaba;
@@ -1402,21 +1372,13 @@ function parseExistencia(v) {
   return isNaN(n) ? null : n;
 }
 
-// Botón del menú: cruza y muestra el resultado en pantalla
 function actualizarInventario() {
-  SpreadsheetApp.getUi().alert(actualizarInventarioCore());
-}
-
-// La lógica real del cruce, sin cuadros de diálogo, para que también la puedan
-// usar "Actualizar todo" y la importación automática (que corre sin pantalla).
-// Devuelve el mensaje de resultado.
-function actualizarInventarioCore() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var hoja1 = ss.getSheetByName('Inv');
   var sh = ss.getSheetByName('Seguimiento');
   var consMat = ss.getSheetByName('Consumo por Material');
   var resColor = ss.getSheetByName('Resumen Consumo');
-  if (!hoja1) return 'No encuentro una pestaña llamada "Inv".';
+  if (!hoja1) { SpreadsheetApp.getUi().alert('No encuentro una pestaña llamada "Inv".'); return; }
 
   var lastRow = hoja1.getLastRow();
   var datos = hoja1.getRange(1, 1, lastRow, 4).getValues(); // A Código, B Nombre, C tu pista, D Existencia
@@ -1546,14 +1508,16 @@ function actualizarInventarioCore() {
   }
 
   var pistasEncontradas = Object.keys(existenciaPorCodigoInterno);
-  return 'Inventario cruzado contra "Inv" (con ' + diasDistintos + ' días de producción registrados ' +
+  SpreadsheetApp.getUi().alert(
+    'Inventario cruzado contra "Inv" (con ' + diasDistintos + ' días de producción registrados ' +
     'en Seguimiento para el promedio diario).\n\n' +
     '- Materia Prima: "Consumo por Material", columnas G, H e I (Días de Cobertura).\n' +
     '- Colorantes: "Resumen Consumo", columnas H a K — revisa la columna J ' +
     '("Coincidencia usada") para confirmar que cada cruce tiene sentido, sobre todo ' +
     'donde diga AMBIGUO o sin match.\n\n' +
     '🔍 DIAGNÓSTICO: encontré ' + pistasEncontradas.length + ' código(s) interno(s) en Inv: [' +
-    pistasEncontradas.join(', ') + ']';
+    pistasEncontradas.join(', ') + ']'
+  );
 }
 
 // ============================================================
@@ -1627,10 +1591,6 @@ function actualizarPortada() {
   var inv = leerInventarioParaDashboard();
   var enRiesgo = inv.materiales.filter(function (m) { return typeof m.diasCobertura === 'number' && m.diasCobertura < 7; }).length
     + inv.colores.filter(function (c) { return typeof c.diasCobertura === 'number' && c.diasCobertura < 7; }).length;
-  // Cuántos renglones tienen de verdad un número de días de cobertura. Si es 0,
-  // el cruce no se ha hecho y NO se puede decir que todo está bien.
-  var conCobertura = inv.materiales.filter(function (m) { return typeof m.diasCobertura === 'number'; }).length
-    + inv.colores.filter(function (c) { return typeof c.diasCobertura === 'number'; }).length;
 
   // --- Encabezado ---
   inicio.getRange('A1:F1').merge().setValue('📊 SEGUIMIENTO MANAPLAS')
@@ -1645,11 +1605,8 @@ function actualizarPortada() {
   if (enRiesgo > 0) {
     inicio.getRange('A4').setValue('⚠️  ' + enRiesgo + ' material(es)/color(es) con menos de 7 días de cobertura — revisa "Consumo por Material" / "Resumen Consumo"')
       .setBackground('#FFC7CE').setFontColor('#9C0006');
-  } else if (conCobertura === 0) {
-    inicio.getRange('A4').setValue('⚠️  Cobertura sin calcular — corre "📦 Cruzar inventario (Inv)" o "📥 Leer inventario más reciente"')
-      .setBackground('#FFF2CC').setFontColor('#7F6000');
   } else {
-    inicio.getRange('A4').setValue('✅  Todos los materiales y colores con inventario cruzado tienen 7 días de cobertura o más')
+    inicio.getRange('A4').setValue('✅  Todos los materiales y colores tienen 7 días de cobertura o más')
       .setBackground('#D9EAD3').setFontColor('#274E13');
   }
   inicio.getRange('A4:F4').setFontWeight('bold').setHorizontalAlignment('center').setVerticalAlignment('middle');
@@ -1809,7 +1766,6 @@ function eliminarFilasDuplicadas() {
   SpreadsheetApp.flush();
   actualizarResumenColores();
   actualizarResumenMateriales();
-  actualizarInventarioCore();
   actualizarDashboard();
   SpreadsheetApp.flush();
 
@@ -2069,8 +2025,7 @@ function leerInventarioDesdeCarpeta() {
   hoja1.setColumnWidth(1, 110).setColumnWidth(2, 380).setColumnWidth(3, 220).setColumnWidth(4, 110);
 
   // cruzar automaticamente con el consumo, igual que el boton de siempre
-  actualizarInventarioCore();
-  actualizarPortada();
+  actualizarInventario();
 
   ui.alert(
     'Inventario actualizado desde "' + masReciente.getName() + '"\n' +
