@@ -79,3 +79,10 @@ Qué hace el código v23:
 ### Código
 - Máximo 30 OP (y 8 colores por OP).
 - Si se pegan datos en una orden, las listas desplegables se restauran solas; botón "🧩 Reparar listas desplegables".
+
+### Hojas 01–14 iguales y listas para imprimir (en la copia)
+- Mismos anchos (A 110, B 105, C 190, D–E 115, F 105, G 130, H 115 px) y mismos altos de fila en las 14 hojas.
+- Formato de celdas copiado de la hoja 01 a las demás: letra mínima 12, renglones de color y cantidades en 13, título "ORDEN DE PRODUCCIÓN" en 18 (antes había encabezados en 10 y cantidades en 17).
+- Nombres de color largos se extienden a la columna COLORANTE en vez de cortarse.
+- Se quitaron celdas combinadas y fondo blanco sobrantes en I:K (vacías) para que la impresión sea solo A:H.
+- Cuadrícula oculta en todas.
