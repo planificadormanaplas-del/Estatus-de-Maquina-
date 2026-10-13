@@ -101,3 +101,12 @@ Qué hace el código v23:
 - Problema: el Maestro se veía todo en blanco. El código usaba `clearFormat()` al limpiar las filas libres y eso borraba también las reglas de color.
 - Colores puestos igual que el original: **azul claro** en OP y TON, **verde** en los datos (incluye UND/DÍA), **gris** en Componentes y Und/Hora, **crema** en Cantidad Final; ¿Importante? y Material Recomendado sin color.
 - `CodigoDinamico.gs` ya no usa `clearFormat()`, y vuelve a crear las reglas de color si faltan cada vez que crea, borra u organiza órdenes o se usa "🧩 Reparar listas desplegables".
+
+### Solo dos catálogos: Colores y Materia Prima (13/10/2026)
+- **Colores** (visible): rehecho con la hoja de consumo de colorantes y cargados. 72 colores: Color, Código, Tipo (Masterbatch / PP cargado / Chemiton), Proveedor (Derplast, MYM, Ampveca, Ferro) y Descripción. Se quitaron Existencia y Estado (ese archivo no trae saldo).
+  - Códigos nuevos que antes faltaban: VERDE PASTEL = 02-04-0106, ROSADO FLUORESCENTE = 02-04-0114, VERDE OLIVA TRANSLÚCIDO = 02-04-0818, AZUL OSCURO NUEVO = 01-13-0629, AZUL (Chemiton) = 01-16-0002, NATURAL 70% = 01-13-0633, GUAYABA = 02-04-0683, ROSADO = 02-04-0857, MARRÓN = 02-04-0861, ROJO = 02-04-0900.
+  - Siguen sin código: AZUL BABY, AZUL OSCURO (SILLAS), GRIS POLAR.
+  - AMARILLO TAPA VIEJO (DM-PB-3140) venía sin código; se le puso 02-04-0869, el que tenía en el inventario.
+- **Materia Prima** (visible, antes "Resinas"): Material, Código, Familia y Descripción. Incluye los genéricos (PPH, PPC, PEAD, 2213, 2908, MOLIDO…) y las mezclas que se usaban en la lista vieja. La lista desplegable de MATERIAL del Maestro sale ahora de aquí.
+- Se borró la pestaña "Inventario MP". La lista vieja quedó oculta como "MP anterior (no usar)" (no se borró por si alguna fórmula vieja la usa).
+- En el Maestro: "NATURAL (70%) (MB 0867)" → "NATURAL 70% (CARGADO 0633)"; " 60C90ND" sin el espacio del inicio.

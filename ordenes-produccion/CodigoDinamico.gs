@@ -270,8 +270,8 @@ function asegurarColoresMaestro(sheet) {
 var LISTAS_FILA = [
   { col: COL_MAQ,        rango: ['Maq y Tons ', 'A4:A'] },
   { col: COL_SKU,        rango: ['Lista de Productos', 'B2:B'] },
-  { col: COL_MATERIAL,   rango: ['Materia Prima ', 'F3:F'] },
-  { col: COL_COLOR,      rango: ['Colores', 'A2:A'] },   // catálogo de colores (nombre + código)
+  { col: COL_MATERIAL,   rango: ['Materia Prima', 'A2:A'] },   // catálogo de materia prima (resinas, genéricos y mezclas)
+  { col: COL_COLOR,      rango: ['Colores', 'A2:A'] },         // catálogo de colores (nombre + tipo + código)
   { col: COL_IMPORTANTE, lista: ['Sí', 'No'] }
 ];
 
