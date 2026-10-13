@@ -110,3 +110,4 @@ Qué hace el código v23:
 - **Materia Prima** (visible, antes "Resinas"): Material, Código, Familia y Descripción. Incluye los genéricos (PPH, PPC, PEAD, 2213, 2908, MOLIDO…) y las mezclas que se usaban en la lista vieja. La lista desplegable de MATERIAL del Maestro sale ahora de aquí.
 - Se borró la pestaña "Inventario MP". La lista vieja quedó oculta como "MP anterior (no usar)" (no se borró por si alguna fórmula vieja la usa).
 - En el Maestro: "NATURAL (70%) (MB 0867)" → "NATURAL 70% (CARGADO 0633)"; " 60C90ND" sin el espacio del inicio.
+- Colores: la celda del nombre (columna B) tiene el color real como referencia visual (letra blanca en los oscuros). Nueva columna G **Característica**: ATÓXICO, TRANSLÚCIDO, CLÍNICO, GRADO ALIMENTICIO, CON/SIN UV, FLUORESCENTE, INFANTIL o NORMAL, cada una con su color. El tipo (Masterbatch / PP cargado / Chemiton) sigue en la columna D.
