@@ -37,3 +37,23 @@
 1. En la hoja: **Extensiones → Apps Script**.
 2. Reemplaza todo el código por el de `Codigo.gs` y guarda.
 3. Recarga la hoja y ejecuta una vez **📋 Órdenes de Producción → 🛠️ Reparar fórmulas del Maestro**.
+
+## v23 — Maestro dinámico (en la copia de prueba)
+
+Archivo de prueba: **Orden De Produccion - PRUEBA Maestro dinámico** (copia del original en Drive).
+Código: `CodigoDinamico.gs` (el original sigue usando `Codigo.gs` v22).
+
+Qué cambió en la copia:
+- **Maestro**: se eliminaron las 967 filas preparadas/ocultas. Quedan los encabezados y filas en blanco visibles. Fila 1 congelada.
+- **Columnas calculadas** (C, F, H, K–P, S, T): una sola fórmula `ARRAYFORMULA` en el encabezado que se aplica a todas las filas. No escribir debajo de esas columnas.
+- **Hojas 01–14**: B6, D6, H6, B7, A11:C18, A20:A27 y H22:H26 ahora buscan en el Maestro las filas con `OP = H4` (ej: `INDEX(FILTER(Maestro!$D:$D;Maestro!$A:$A=$H$4);1)`), en vez de apuntar a filas fijas.
+- **Columna OP**: se colorea sola (impar azul / par gris) con formato condicional.
+- Probado con 2 órdenes de ejemplo: el Maestro calculó TON, Producto, Sacos, Peso, etc., y las hojas 01 y 02 mostraron cada una su orden. Los datos de prueba se borraron.
+
+Qué hace el código v23:
+- Generar orden → inserta sus filas (ordenadas por número de OP).
+- Gestionar → Agregar color → inserta una fila dentro de la orden (máx. 8).
+- Gestionar → Borrar / Borrar sin Historial / Vaciar → elimina las filas.
+- Organizar → ordena por OP y renumera 1, 2, 3… moviendo Tipo de Material y Observaciones.
+- Ya no hay límite de 30 órdenes; solo las OP 1–14 tienen hoja de impresión (avisa si eliges una mayor).
+- Se quitaron "Colorear OP" y "Reparar fórmulas" (ya no hacen falta).
