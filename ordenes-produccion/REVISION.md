@@ -96,3 +96,8 @@ Qué hace el código v23:
 - Revisión con PDF: sin palabras partidas. "DOCIFICACIÓN" corregido a "DOSIFICACIÓN"; títulos largos (Piezas producidas/buenas/malas, Gerente de producción, Observaciones, fechas OP, Descripción) en letra 9–10; lista de colores de la fila 20 sin cortes. Anchos: A 120, B 110, C 190, D–F 115, G 130, H 115 (la hoja 01 tenía C en 304 y se volvió a 190 para que imprima igual que las demás).
 - UND/DÍA ahora = Und/Hora × 7 horas (antes 10).
 - Agregados a Colores (sin código, no están en el inventario): AZUL BABY, AZUL OSCURO (SILLAS), GRIS POLAR, OLIVA TRANSLÚCIDO, ROSADO FLUORESCENTE. Lista ordenada alfabéticamente (75 colores).
+
+### Colores de las filas del Maestro (13/10/2026)
+- Problema: el Maestro se veía todo en blanco. El código usaba `clearFormat()` al limpiar las filas libres y eso borraba también las reglas de color.
+- Colores puestos igual que el original: **azul claro** en OP y TON, **verde** en los datos (incluye UND/DÍA), **gris** en Componentes y Und/Hora, **crema** en Cantidad Final; ¿Importante? y Material Recomendado sin color.
+- `CodigoDinamico.gs` ya no usa `clearFormat()`, y vuelve a crear las reglas de color si faltan cada vez que crea, borra u organiza órdenes o se usa "🧩 Reparar listas desplegables".

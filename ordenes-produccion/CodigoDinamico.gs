@@ -192,11 +192,11 @@ function escribirColumna(sheet, fila, col, n, valor) {
 // Suprimir). Al crear una orden, el código pone además bordes, letra y
 // formato de números. Una entrada por columna, de A a T ("fondo" queda
 // solo como referencia de los colores de la regla condicional).
-var VERDE = '#D9F2D9', GRIS = '#EDEDED', CREMA = '#EAF6FC';
+var VERDE = '#D9F2D9', AZUL = '#D9E8F5', GRIS = '#EDEDED', CREMA = '#EAF6FC';
 var FORMATO_COLUMNAS = [
-  { fondo: VERDE, alinear: 'center', numero: '0',        tam: 10 }, // A OP
+  { fondo: AZUL,  alinear: 'center', numero: '0',        tam: 10 }, // A OP
   { fondo: VERDE, alinear: 'center', numero: '0',        tam: 10 }, // B MAQ (número, para que TON la encuentre)
-  { fondo: VERDE, alinear: 'center', numero: '0',        tam: 10 }, // C TON
+  { fondo: AZUL,  alinear: 'center', numero: '0',        tam: 10 }, // C TON
   { fondo: VERDE, alinear: 'center', numero: '@',        tam: 11 }, // D Sku
   { fondo: VERDE, alinear: 'center', numero: '@',        tam: 11 }, // E Componente
   { fondo: VERDE, alinear: 'left',   numero: '@',        tam: 10 }, // F Producto
@@ -210,7 +210,7 @@ var FORMATO_COLUMNAS = [
   { fondo: VERDE, alinear: 'right',  numero: '#,##0.00', tam: 10 }, // N Peso
   { fondo: VERDE, alinear: 'right',  numero: '#,##0.00', tam: 10 }, // O Cav.
   { fondo: GRIS,  alinear: 'right',  numero: '#,##0',    tam: 11 }, // P Und/Hora
-  { fondo: GRIS,  alinear: 'right',  numero: '#,##0',    tam: 11 }, // Q Und/Día
+  { fondo: VERDE, alinear: 'right',  numero: '#,##0',    tam: 11 }, // Q Und/Día
   { fondo: null,  alinear: 'center', numero: '@',        tam: 11 }, // R ¿Importante?
   { fondo: CREMA, alinear: 'center', numero: '#,##0',    tam: 10 }, // S Cantidad final
   { fondo: null,  alinear: 'center', numero: '@',        tam: 11 }  // T Material recomendado
@@ -234,6 +234,35 @@ function aplicarFormatoFilas(sheet, fila, n) {
     .setVerticalAlignment('middle')
     .setWrap(true)
     .setBorder(true, true, true, true, true, true);
+  asegurarColoresMaestro(sheet);
+}
+
+// Vuelve a crear las reglas de color del Maestro (las mismas del original:
+// azul en OP y TON, verde en los datos, gris en Componentes y Und/Hora,
+// crema en Cantidad final). Solo pinta las filas que tienen OP en la
+// columna A. Si alguien las borró, aquí se recuperan.
+var FORMULA_COLOR_FILA = '=$A2<>""';
+function asegurarColoresMaestro(sheet) {
+  var filas = sheet.getMaxRows() - 1;
+  if (filas < 1) return;
+  var porColor = {};
+  FORMATO_COLUMNAS.forEach(function (f, i) {
+    if (!f.fondo) return;
+    (porColor[f.fondo] = porColor[f.fondo] || []).push(sheet.getRange(FILA_INICIO, i + 1, filas, 1));
+  });
+  var otras = sheet.getConditionalFormatRules().filter(function (r) {
+    var c = r.getBooleanCondition();
+    return !(c && c.getCriteriaType() === SpreadsheetApp.BooleanCriteria.CUSTOM_FORMULA &&
+             c.getCriteriaValues()[0] === FORMULA_COLOR_FILA);
+  });
+  var nuevas = Object.keys(porColor).map(function (color) {
+    return SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied(FORMULA_COLOR_FILA)
+      .setBackground(color)
+      .setRanges(porColor[color])
+      .build();
+  });
+  sheet.setConditionalFormatRules(nuevas.concat(otras));
 }
 
 // Listas desplegables de cada fila de orden (las mismas del Maestro original).
@@ -264,13 +293,21 @@ function aplicarListasFilas(sheet, fila, n) {
 }
 
 // Deja en blanco (sin formato ni listas) todas las filas debajo de la última orden.
+// Ojo: NO usar clearFormat(), porque también borra las reglas de color
+// (formato condicional) y el Maestro se queda todo en blanco.
 function limpiarFormatoReserva(sheet) {
   var ultima = ultimaFilaConDatos(sheet);
   var resto = sheet.getMaxRows() - ultima;
   if (resto < 1) return;
   var rango = sheet.getRange(ultima + 1, 1, resto, sheet.getMaxColumns());
-  rango.clearFormat();
+  rango.setBorder(false, false, false, false, false, false)
+    .setBackground(null)
+    .setFontWeight('normal')
+    .setFontSize(10)
+    .setNumberFormat('General')
+    .setHorizontalAlignment(null);
   rango.clearDataValidations();
+  asegurarColoresMaestro(sheet);
 }
 
 // ---------- Número de OP ----------
@@ -1202,7 +1239,7 @@ function repararListas() {
   var ultima = ultimaFilaConDatos(sheet);
   if (ultima >= FILA_INICIO) restaurarListasEnFilas(sheet, FILA_INICIO, ultima);
   limpiarFormatoReserva(sheet);
-  ss.toast('Las listas desplegables quedaron puestas en todas las filas con orden.', '🧩 Listo', 6);
+  ss.toast('Las listas desplegables y los colores quedaron puestos en todas las filas con orden.', '🧩 Listo', 6);
 }
 
 // ---------- Automático: filtrar Componentes según el SKU (si editas directo en la hoja) ----------
