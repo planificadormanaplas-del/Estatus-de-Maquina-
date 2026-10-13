@@ -66,3 +66,5 @@ Qué hace el código v23:
 - El color de las filas ahora es un formato condicional (`=$A2<>""`): verde/gris/crema solo si la fila tiene OP. Si se borran los datos a mano (Suprimir), la fila vuelve a verse en blanco.
 - "Gestionar esta orden → Borrar" ahora pregunta: solo la fila (color) donde estás, o la orden completa. La fila borrada se guarda en el Historial.
 - "Guardar copia en Drive" guarda la copia directo en la carpeta **Seguimiento** (si no puede, la deja junto al original y avisa).
+- Se recuperaron las listas desplegables del Maestro (Máquina, Sku, Material, Cantidad ≥ 0, Color, ¿Importante?) en las filas con órdenes; el código las pone en cada orden nueva y las quita de las filas vacías.
+- Corregido: la máquina se guardaba como texto y TON salía vacío. Ahora se guarda como número.

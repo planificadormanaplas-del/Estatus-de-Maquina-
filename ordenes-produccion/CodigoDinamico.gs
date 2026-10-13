@@ -189,7 +189,7 @@ function escribirColumna(sheet, fila, col, n, valor) {
 var VERDE = '#D9F2D9', GRIS = '#EDEDED', CREMA = '#EAF6FC';
 var FORMATO_COLUMNAS = [
   { fondo: VERDE, alinear: 'center', numero: '0',        tam: 10 }, // A OP
-  { fondo: VERDE, alinear: 'center', numero: '@',        tam: 10 }, // B MAQ
+  { fondo: VERDE, alinear: 'center', numero: '0',        tam: 10 }, // B MAQ (número, para que TON la encuentre)
   { fondo: VERDE, alinear: 'center', numero: '0',        tam: 10 }, // C TON
   { fondo: VERDE, alinear: 'center', numero: '@',        tam: 11 }, // D Sku
   { fondo: VERDE, alinear: 'center', numero: '@',        tam: 11 }, // E Componente
@@ -228,6 +228,33 @@ function aplicarFormatoFilas(sheet, fila, n) {
     .setVerticalAlignment('middle')
     .setWrap(true)
     .setBorder(true, true, true, true, true, true);
+}
+
+// Listas desplegables de cada fila de orden (las mismas del Maestro original).
+// El Componente (E) tiene su propia lista según el SKU.
+var LISTAS_FILA = [
+  { col: COL_MAQ,        rango: ['Maq y Tons ', 'A4:A'] },
+  { col: COL_SKU,        rango: ['Lista de Productos', 'B2:B'] },
+  { col: COL_MATERIAL,   rango: ['Materia Prima ', 'F3:F'] },
+  { col: COL_COLOR,      rango: ['Hoja 1', 'B2:B'] },
+  { col: COL_IMPORTANTE, lista: ['Sí', 'No'] }
+];
+
+function aplicarListasFilas(sheet, fila, n) {
+  var ss = sheet.getParent();
+  LISTAS_FILA.forEach(function (l) {
+    var regla = SpreadsheetApp.newDataValidation().setAllowInvalid(false);
+    if (l.lista) {
+      regla.requireValueInList(l.lista, true);
+    } else {
+      var hoja = ss.getSheetByName(l.rango[0]);
+      if (!hoja) return;
+      regla.requireValueInRange(hoja.getRange(l.rango[1]), true);
+    }
+    sheet.getRange(fila, l.col, n, 1).setDataValidation(regla.build());
+  });
+  sheet.getRange(fila, COL_CANTIDAD, n, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireNumberGreaterThanOrEqualTo(0).setAllowInvalid(false).build());
 }
 
 // Deja en blanco (sin formato ni listas) todas las filas debajo de la última orden.
@@ -592,11 +619,13 @@ function insertarOrden(sheet, op, n, maquina, sku, componente, importante) {
 // filas, y deja vacías las demás columnas de entrada.
 function llenarFilasDeOrden(sheet, fila, n, op, maquina, sku, componente, importante) {
   aplicarFormatoFilas(sheet, fila, n);
+  aplicarListasFilas(sheet, fila, n);
   for (var c = 0; c < COLUMNAS_ENTRADA.length; c++) {
     sheet.getRange(fila, COLUMNAS_ENTRADA[c], n, 1).clearContent();
   }
   escribirColumna(sheet, fila, COL_OP, n, op);
-  escribirColumna(sheet, fila, COL_MAQ, n, maquina);
+  var maqNumero = Number(maquina);
+  escribirColumna(sheet, fila, COL_MAQ, n, (maquina !== '' && !isNaN(maqNumero)) ? maqNumero : maquina);
   escribirColumna(sheet, fila, COL_SKU, n, sku);
 
   var rangoComp = sheet.getRange(fila, COL_COMPONENTE, n, 1);
