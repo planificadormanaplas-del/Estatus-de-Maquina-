@@ -19,6 +19,9 @@
  *     agregar y borrar filas sin romper nada.
  *   - Las filas vacías quedan en blanco: el formato (verde, bordes…) se
  *     pone solo al crear la orden y se quita al borrarla o vaciar.
+ *   - "Gestionar → Borrar" pregunta si borrar SOLO la fila (color) donde
+ *     estás o la orden completa.
+ *   - "Guardar copia en Drive" la guarda directo en la carpeta Seguimiento.
  *   - La columna Q es UND/DÍA = Und/Hora × 10 h (turno de 6:00 a 16:00).
  *     También es fórmula del encabezado (antes era "Volver al Índice").
  *
@@ -76,6 +79,8 @@ var COL_LISTA_PRODUCTOS_SKU = 2;         // B en Lista de Productos (código)
 var COL_LISTA_PRODUCTOS_NOMBRE = 3;      // C en Lista de Productos (nombre)
 var COL_MAQ_ESTATUS = 6;                 // F en Maq y Tons (Estatus Actual)
 var ESTATUS_OPERATIVA = 'Operativa';
+// Carpeta "Seguimiento" de Drive donde se guardan las copias con fecha.
+var CARPETA_COPIAS_ID = '1O0DMmXaRL6dfLTsXqbA4bdx7aIYm7Wwh';
 // ----------------------------------------------------------
 
 // Columnas que se escriben a mano (o desde el asistente). Las demás son
@@ -680,38 +685,77 @@ function gestionarOrden() {
     'Orden OP ' + orden.op,
     '¿Qué quieres hacer con esta orden?\n\n' +
     'Sí → Agregar otro color/producto a esta orden\n' +
-    'No → Borrar esta orden completa\n' +
+    'No → Borrar (te pregunto si solo una fila o toda la orden)\n' +
     'Cancelar → No hacer nada',
     ui.ButtonSet.YES_NO_CANCEL
   );
 
   if (resp === ui.Button.YES) {
-    if (orden.n >= MAX_COLORES) {
-      ui.alert('Esta orden ya tiene los ' + MAX_COLORES + ' colores que caben en su hoja de impresión.');
+    agregarColor(ui, ss, sheet, orden);
+  } else if (resp === ui.Button.NO) {
+    var filaActiva = sheet.getActiveCell().getRow();
+    if (orden.n === 1) {
+      borrarOrdenCompleta(ui, ss, sheet, orden);
       return;
     }
-    var primera = orden.filas[0];
-    var filaNueva = orden.fila + orden.n;
-    sheet.insertRowsAfter(filaNueva - 1, 1);
-    llenarFilasDeOrden(sheet, filaNueva, 1, orden.op, primera[COL_MAQ - 1], primera[COL_SKU - 1],
-                       primera[COL_COMPONENTE - 1], primera[COL_IMPORTANTE - 1]);
-    sheet.setActiveRange(sheet.getRange(filaNueva, COL_CANTIDAD));
-    ss.toast('Se agregó una fila más a la orden OP ' + orden.op + '. Ya tiene el mismo SKU/Componente, solo falta Cantidad y Color.', '✅', 8);
-
-  } else if (resp === ui.Button.NO) {
-    var confirmar = ui.alert(
-      '🗑️ Borrar orden OP ' + orden.op,
-      'Esto va a guardar la orden en el Historial y eliminar sus ' + orden.n + ' fila(s) del Maestro.\n\n¿Seguro?',
-      ui.ButtonSet.YES_NO
+    var color = orden.filas[filaActiva - orden.fila][COL_COLOR - 1];
+    var cual = ui.alert(
+      '🗑️ Borrar en la OP ' + orden.op,
+      '¿Qué quieres borrar?\n\n' +
+      'Sí → Solo la fila ' + filaActiva + (color ? ' (color ' + color + ')' : '') + '\n' +
+      'No → La orden COMPLETA (' + orden.n + ' filas)\n' +
+      'Cancelar → No borrar nada',
+      ui.ButtonSet.YES_NO_CANCEL
     );
-    if (confirmar === ui.Button.YES) {
-      guardarEnHistorial(filasParaHistorial(orden.filas, orden.op, 'Borrado individual', new Date()));
-      eliminarFilas(sheet, orden.fila, orden.n);
-      limpiarTipoDeMaterialDeHoja(ss, orden.op);
-      limpiarObservacionesDeHoja(ss, orden.op);
-      ss.toast('La orden OP ' + orden.op + ' quedó guardada en el Historial y borrada del Maestro.', '🗑️ Listo', 6);
+    if (cual === ui.Button.YES) {
+      borrarUnaFila(ui, ss, sheet, orden, filaActiva);
+    } else if (cual === ui.Button.NO) {
+      borrarOrdenCompleta(ui, ss, sheet, orden);
     }
   }
+}
+
+function agregarColor(ui, ss, sheet, orden) {
+  if (orden.n >= MAX_COLORES) {
+    ui.alert('Esta orden ya tiene los ' + MAX_COLORES + ' colores que caben en su hoja de impresión.');
+    return;
+  }
+  var primera = orden.filas[0];
+  var filaNueva = orden.fila + orden.n;
+  sheet.insertRowsAfter(filaNueva - 1, 1);
+  llenarFilasDeOrden(sheet, filaNueva, 1, orden.op, primera[COL_MAQ - 1], primera[COL_SKU - 1],
+                     primera[COL_COMPONENTE - 1], primera[COL_IMPORTANTE - 1]);
+  sheet.setActiveRange(sheet.getRange(filaNueva, COL_CANTIDAD));
+  ss.toast('Se agregó una fila más a la orden OP ' + orden.op + '. Ya tiene el mismo SKU/Componente, solo falta Cantidad y Color.', '✅', 8);
+}
+
+// Borra solo una fila (un color) de la orden, guardándola antes en el Historial.
+function borrarUnaFila(ui, ss, sheet, orden, fila) {
+  var datos = orden.filas[fila - orden.fila];
+  var confirmar = ui.alert(
+    '🗑️ Borrar fila ' + fila,
+    'Se va a guardar esta fila en el Historial y se va a eliminar del Maestro. ' +
+    'La OP ' + orden.op + ' queda con ' + (orden.n - 1) + ' fila(s). ¿Seguro?',
+    ui.ButtonSet.YES_NO
+  );
+  if (confirmar !== ui.Button.YES) return;
+  guardarEnHistorial(filasParaHistorial([datos], orden.op, 'Borrado de una fila', new Date()));
+  eliminarFilas(sheet, fila, 1);
+  ss.toast('Se borró la fila ' + fila + ' de la OP ' + orden.op + '. El resto de la orden sigue igual.', '🗑️ Listo', 6);
+}
+
+function borrarOrdenCompleta(ui, ss, sheet, orden) {
+  var confirmar = ui.alert(
+    '🗑️ Borrar orden OP ' + orden.op,
+    'Esto va a guardar la orden en el Historial y eliminar sus ' + orden.n + ' fila(s) del Maestro.\n\n¿Seguro?',
+    ui.ButtonSet.YES_NO
+  );
+  if (confirmar !== ui.Button.YES) return;
+  guardarEnHistorial(filasParaHistorial(orden.filas, orden.op, 'Borrado individual', new Date()));
+  eliminarFilas(sheet, orden.fila, orden.n);
+  limpiarTipoDeMaterialDeHoja(ss, orden.op);
+  limpiarObservacionesDeHoja(ss, orden.op);
+  ss.toast('La orden OP ' + orden.op + ' quedó guardada en el Historial y borrada del Maestro.', '🗑️ Listo', 6);
 }
 
 // ---------- Borrar sin dejar rastro en el Historial (para corregir errores) ----------
@@ -939,12 +983,22 @@ function guardarCopiaEnDrive() {
   }
 
   var nombre = 'ORDEN DE PRODUCCION ' + dia + ' DE ' + mesesEs[mesNumero - 1].toUpperCase() + ' DE ' + anio;
-  var copia = ss.copy(nombre);
+  var donde;
+  var copia;
+  try {
+    var carpeta = DriveApp.getFolderById(CARPETA_COPIAS_ID);
+    copia = DriveApp.getFileById(ss.getId()).makeCopy(nombre, carpeta);
+    donde = 'en la carpeta "' + carpeta.getName() + '" de tu Drive';
+  } catch (err) {
+    // Si la carpeta no se encuentra (o no hay permiso), se guarda junto al original.
+    copia = DriveApp.getFileById(ss.copy(nombre).getId());
+    donde = 'en la misma carpeta que este archivo (no pude usar la carpeta de Seguimiento: ' + err.message + ')';
+  }
 
   ui.alert(
     '✅ Copia guardada en Drive',
     'Se creó la copia con el nombre:\n\n"' + nombre + '"\n\n' +
-    'Ya está guardada en tu Google Drive (en la misma carpeta que este archivo). ' +
+    'Quedó guardada ' + donde + '. ' +
     'La puedes abrir, compartir o descargar como Excel cuando quieras.\n\n' +
     'Enlace: ' + copia.getUrl(),
     ui.ButtonSet.OK

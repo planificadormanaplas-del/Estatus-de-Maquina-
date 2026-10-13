@@ -64,3 +64,5 @@ Qué hace el código v23:
 - `CodigoDinamico.gs` ya no escribe en la columna Q.
 - Filas vacías del Maestro en blanco (sin formato). `CodigoDinamico.gs` pone el formato verde/gris con bordes solo en las filas de cada orden al crearla o al agregar un color, y deja en blanco las filas que quedan libres al borrar, organizar o vaciar.
 - El color de las filas ahora es un formato condicional (`=$A2<>""`): verde/gris/crema solo si la fila tiene OP. Si se borran los datos a mano (Suprimir), la fila vuelve a verse en blanco.
+- "Gestionar esta orden → Borrar" ahora pregunta: solo la fila (color) donde estás, o la orden completa. La fila borrada se guarda en el Historial.
+- "Guardar copia en Drive" guarda la copia directo en la carpeta **Seguimiento** (si no puede, la deja junto al original y avisa).
