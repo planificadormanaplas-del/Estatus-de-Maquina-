@@ -15,9 +15,10 @@
  *    escrito a mano. Además, ahora cada vez que se crea una orden, se agrega
  *    un color o se organizan las órdenes, se aseguran las fórmulas de ese
  *    bloque automáticamente.
- *  - Las fórmulas reparadas buscan en columnas completas ('Componentes '!B:N)
- *    en vez de rangos cortados como $B$2:$M1029, que se iban "corriendo" de
- *    fila en fila y dejaban fuera los componentes nuevos al final de la lista.
+ *  - Las fórmulas del Maestro ahora buscan en columnas completas
+ *    ('Componentes '!B:N) en vez de rangos cortados como $B$2:$M1029. El
+ *    botón de reparar copia la fórmula de la fila 2 a las celdas vacías
+ *    (respetando las celdas combinadas de TON).
  *  - "Organizar" y "Borrar SIN Historial" ahora mueven también el "Tipo de
  *    Material" (G21) y las "Observaciones" (E34) de las hojas 01-14 junto con
  *    la orden. Antes, al recorrer la OP 3 a la OP 2, sus observaciones se
@@ -218,54 +219,43 @@ function limpiarBloque(sheet, filaBloque) {
 
 // ---------- Fórmulas del Maestro ----------
 
-// Fórmulas "oficiales" de cada columna calculada. {r} se reemplaza por el
-// número de fila. Van en sintaxis de Apps Script (comas, nombres en inglés);
-// Google Sheets las muestra después con punto y coma, como siempre.
-// Son las mismas que ya tenía la hoja, pero buscando en columnas completas.
-var FORMULAS_MAESTRO = {
-  3:  '=IFERROR(VLOOKUP(B{r},\'Maq y Tons \'!$A$3:$F,3,FALSE),"")',                                   // C = TON
-  6:  '=IFERROR(VLOOKUP(D{r},\'Lista de Productos\'!$B:$D,2,FALSE)," ")',                              // F = PRODUCTO
-  8:  '=IFERROR(UPPER(VLOOKUP(E{r},\'Componentes \'!$B:$F,5,FALSE))," ")',                             // H = COMPONENTES
-  11: '=IF(I{r}="","",IFERROR(IF(R{r}="Sí",ROUNDUP(N{r}*I{r}/25000,0),ROUND(N{r}*I{r}/25000,0))," "))', // K = SACOS
-  12: '=IF(K{r}="","",IFERROR(K{r}*25," "))',                                                          // L = SACOS (kg)
-  13: '=IFERROR(VLOOKUP(E{r},\'Componentes \'!$B:$N,12,FALSE)," ")',                                  // M = CICLO
-  14: '=IFERROR(VLOOKUP(E{r},\'Componentes \'!$B:$N,10,FALSE),"")',                                    // N = PESO
-  15: '=IFERROR(VLOOKUP(E{r},\'Componentes \'!$B:$N,13,FALSE),"")',                                    // O = CAV.
-  16: '=IFERROR((3600*O{r})/M{r},"")',                                                                // P = UND/HORA
-  19: '=IF(I{r}="","",IFERROR(MROUND(K{r}*25000/N{r},10),""))',                                        // S = CANTIDAD FINAL
-  20: '=IFERROR(VLOOKUP(E{r},Caracteristicas!$C:$AD,12,0),"")'                                        // T = MATERIAL RECOMENDADO
-};
+// Columnas calculadas del Maestro (C, F, H, K-P, S, T). La fórmula "modelo"
+// de cada una es la de la fila 2 (FILA_INICIO): para arreglar una celda vacía
+// se COPIA desde ahí, igual que copiar y pegar a mano, así las filas se
+// ajustan solas y no importa si la hoja usa coma o punto y coma.
+var COLUMNAS_CALCULADAS = [3, 6, 8, 11, 12, 13, 14, 15, 16, 19, 20];
 
-// Pone las fórmulas oficiales en las filas indicadas. Si una celda tiene un
-// valor escrito a mano (no fórmula), se respeta y no se toca.
-// Devuelve cuántas celdas se arreglaron (estaban vacías) y cuántas se
-// respetaron por tener un valor a mano.
+// Pone la fórmula en las celdas calculadas que estén VACÍAS. No toca las que
+// ya tienen fórmula, ni las que tienen un valor escrito a mano, ni las
+// celdas "escondidas" dentro de una celda combinada (ej: TON de las OP 9-30,
+// que es una sola celda por orden).
+// Devuelve cuántas celdas se arreglaron y cuáles tienen un valor a mano.
 function asegurarFormulas(sheet, filaInicio, numFilas) {
   var reparadas = 0;
   var manuales = [];
-  for (var colTexto in FORMULAS_MAESTRO) {
-    var col = parseInt(colTexto, 10);
-    var plantilla = FORMULAS_MAESTRO[colTexto];
+  for (var c = 0; c < COLUMNAS_CALCULADAS.length; c++) {
+    var col = COLUMNAS_CALCULADAS[c];
+    var modelo = sheet.getRange(FILA_INICIO, col);
+    if (modelo.getFormula() === '') continue; // sin modelo no hay qué copiar
     var rango = sheet.getRange(filaInicio, col, numFilas, 1);
     var formulas = rango.getFormulas();
     var valores = rango.getValues();
-    var nuevos = [];
-    var cambia = false;
+
+    var tapadas = {};
+    rango.getMergedRanges().forEach(function (m) {
+      for (var f = m.getRow() + 1; f <= m.getLastRow(); f++) tapadas[f] = true;
+    });
+
     for (var i = 0; i < numFilas; i++) {
       var fila = filaInicio + i;
-      if (formulas[i][0] === '' && valores[i][0] !== '' && valores[i][0] !== ' ') {
-        // Valor escrito a mano: no lo pisamos.
-        nuevos.push([valores[i][0]]);
+      if (fila === FILA_INICIO || tapadas[fila] || formulas[i][0] !== '') continue;
+      if (valores[i][0] !== '' && valores[i][0] !== ' ') {
         manuales.push(rango.getCell(i + 1, 1).getA1Notation());
         continue;
       }
-      if (formulas[i][0] === '') {
-        reparadas++;
-        cambia = true;
-      }
-      nuevos.push([plantilla.replace(/\{r\}/g, fila)]);
+      modelo.copyTo(sheet.getRange(fila, col), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+      reparadas++;
     }
-    if (cambia) rango.setValues(nuevos);
   }
   return { reparadas: reparadas, manuales: manuales };
 }
@@ -286,7 +276,7 @@ function repararFormulasMaestro() {
     'de TON, Producto, Componentes, Sacos, Sacos (kg), Ciclo, Peso, Cavidades, Und/Hora, Cantidad Final y ' +
     'Material Recomendado donde falten.\n\n' +
     'No toca Máquina, Sku, Componente, Material, Cantidad, Color, Estado ni "¿Producto importante?". ' +
-    'Si alguna celda calculada tiene un número escrito a mano, se respeta. ¿Continuar?',
+    'Si alguna celda calculada tiene un número escrito a mano, se respeta. Las fórmulas se copian de la fila 2. ¿Continuar?',
     ui.ButtonSet.YES_NO
   );
   if (confirmar !== ui.Button.YES) return;
