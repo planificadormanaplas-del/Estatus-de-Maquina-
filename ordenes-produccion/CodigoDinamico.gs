@@ -26,7 +26,7 @@
  *   - La lista de Color sale de la hoja "Colores" (catálogo con código).
  *   - Si pegas datos en una orden, las listas desplegables se vuelven a
  *     poner solas; también está el botón "🧩 Reparar listas desplegables".
- *   - La columna Q es UND/DÍA = Und/Hora × 10 h (turno de 6:00 a 16:00).
+ *   - La columna Q es UND/DÍA = Und/Hora × 7 horas.
  *     También es fórmula del encabezado (antes era "Volver al Índice").
  *
  * Ya no hay límite de 30 órdenes. Cada orden sigue teniendo máximo 8
@@ -75,7 +75,7 @@ var COL_MATERIAL = 7;         // G = Material
 var COL_CANTIDAD = 9;         // I = Cantidad
 var COL_COLOR = 10;           // J = Color
 var COL_SACOS = 11;           // K = Sacos (fórmula)
-var COL_UND_DIA = 17;         // Q = Und/Día (fórmula: Und/Hora × horas del turno)
+var COL_UND_DIA = 17;         // Q = Und/Día (fórmula: Und/Hora × 7 horas)
 var COL_IMPORTANTE = 18;      // R = ¿Producto importante?
 var COL_CANTIDAD_FINAL = 19;  // S = Cantidad final (fórmula)
 var COL_COMPONENTES_CODIGO = 2;          // B en Componentes (código, ej: 0004-0/0)

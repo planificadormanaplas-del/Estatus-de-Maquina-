@@ -94,3 +94,4 @@ Qué hace el código v23:
 - Se actualizaron los colores ya elegidos en el Maestro al nombre nuevo.
 - Hojas 01–14: la columna COLOR (y la lista de colores de "Piezas producidas") muestra solo el nombre del color ("TURQUESA"); el código queda en la columna CÓDIGO. En el Maestro la lista sigue con tipo y código para distinguir colores repetidos.
 - Revisión con PDF: sin palabras partidas. "DOCIFICACIÓN" corregido a "DOSIFICACIÓN"; títulos largos (Piezas producidas/buenas/malas, Gerente de producción, Observaciones, fechas OP, Descripción) en letra 9–10; lista de colores de la fila 20 sin cortes. Anchos: A 120, B 110, C 190, D–F 115, G 130, H 115 (la hoja 01 tenía C en 304 y se volvió a 190 para que imprima igual que las demás).
+- UND/DÍA ahora = Und/Hora × 7 horas (antes 10).
