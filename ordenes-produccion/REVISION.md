@@ -92,3 +92,4 @@ Qué hace el código v23:
 - La columna Tipo de "Colores" se colorea: azul = Masterbatch, naranja = PP cargado, morado = Chemiton.
 - Agregado VERDE PASTEL sin código: aparece como "VERDE PASTEL (SIN CÓDIGO)" con estado "SIN CÓDIGO" hasta que se escriba su código en la columna C.
 - Se actualizaron los colores ya elegidos en el Maestro al nombre nuevo.
+- Hojas 01–14: la columna COLOR (y la lista de colores de "Piezas producidas") muestra solo el nombre del color ("TURQUESA"); el código queda en la columna CÓDIGO. En el Maestro la lista sigue con tipo y código para distinguir colores repetidos.
