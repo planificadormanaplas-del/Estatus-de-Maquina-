@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seguimiento Manaplas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EDF1EF;
+    --surface: #FFFFFF;
+    --surface-2: #F5F8F6;
+    --ink: #13201E;
+    --ink-2: #44534F;
+    --ink-3: #5F6E69;
+    --line: #D8E0DC;
+    --line-strong: #B9C6C1;
+    --accent: #1F4E5F;
+    --accent-2: #2E7484;
+    --accent-soft: #E1ECEE;
+    --accent-ink: #FFFFFF;
+    --alert: #B42318;
+    --alert-soft: #FCE8E5;
+    --alert-line: #F1B5AC;
+    --muted-bar: #C9D3CF;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(19, 32, 30, .06), 0 6px 18px -8px rgba(19, 32, 30, .14);
+    --font: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 15px/1.45 var(--font);
+    font-variant-numeric: tabular-nums;
+  }
+  ::selection { background: var(--accent); color: var(--accent-ink); }
+  :focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; border-radius: 4px; }
+  * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 0 32px 48px; }
+
+  /* ---------- Barra superior ---------- */
+  .top {
+    display: flex; align-items: center; gap: 24px;
+    padding: 22px 0 20px;
+    border-bottom: 1px solid var(--line-strong);
+  }
+  .brand { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
+  .brand b {
+    font-weight: 800; font-stretch: 75%; font-size: 26px; letter-spacing: -.01em;
+    color: var(--accent);
+  }
+  .brand span { color: var(--ink-2); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top .meta { margin-left: auto; display: flex; align-items: center; gap: 16px; color: var(--ink-3); font-size: 13.5px; white-space: nowrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 36px; padding: 0 14px;
+    border: 1px solid var(--accent); border-radius: 8px;
+    background: var(--accent); color: var(--accent-ink);
+    font: 600 14px var(--font); text-decoration: none; cursor: pointer;
+    transition: background-color .18s ease-out, transform .18s ease-out;
+  }
+  .btn:hover { background: var(--accent-2); border-color: var(--accent-2); }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 16px; height: 16px; }
+
+  /* ---------- Libro de cifras ---------- */
+  .ledger {
+    display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+    margin: 28px 0 0;
+    border-top: 3px solid var(--ink);
+  }
+  .ledger div { padding: 14px 18px 4px 0; }
+  .ledger div + div { padding-left: 18px; border-left: 1px solid var(--line); }
+  .ledger dt { font-size: 13px; color: var(--ink-2); font-weight: 500; }
+  .ledger dd {
+    margin: 4px 0 0; font-weight: 700; font-stretch: 80%;
+    font-size: 34px; line-height: 1.05; letter-spacing: -.015em;
+  }
+  .ledger dd small { font-size: 15px; font-weight: 500; color: var(--ink-3); margin-left: 4px; letter-spacing: 0; }
+  .ledger .total dd { color: var(--accent); }
+
+  /* ---------- Rejilla principal ---------- */
+  .grid-main { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 24px; margin-top: 32px; }
+  .grid-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-top: 24px; }
+
+  .panel {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 22px 24px 24px; min-width: 0;
+  }
+  .panel-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px; }
+  .panel-head h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.005em; }
+  .panel-head p { margin: 0; color: var(--ink-3); font-size: 13.5px; }
+  .panel-head .right { margin-left: auto; color: var(--ink-3); font-size: 13.5px; white-space: nowrap; }
+
+  /* ---------- Gráfica por día ---------- */
+  .grid-main > .panel:first-child { display: flex; flex-direction: column; }
+  .chart { position: relative; flex: 1; min-height: 260px; }
+  .legend-avg { display: inline-flex; margin-right: 2px; align-items: center; gap: 6px; color: var(--ink); font-weight: 600; }
+  .legend-avg i { width: 18px; border-top: 1.5px dashed var(--ink); }
+  .chart svg { display: block; width: 100%; overflow: visible; }
+  .chart .axis text { fill: var(--ink-3); font: 500 12px var(--font); }
+  .chart .gridline { stroke: var(--line); stroke-width: 1; }
+  .chart .bar { fill: var(--accent); transition: fill .15s ease-out; }
+  .chart .bar-hit:hover + .bar, .chart .bar.is-hot { fill: var(--accent-2); }
+  .chart .avg { stroke: var(--ink); stroke-width: 1.25; stroke-dasharray: 4 4; }
+  .tip {
+    position: absolute; pointer-events: none; transform: translate(-50%, -100%);
+    background: var(--ink); color: #fff; border-radius: 6px; padding: 6px 9px;
+    font-size: 12.5px; line-height: 1.3; white-space: nowrap;
+    box-shadow: 0 4px 12px -4px rgba(0,0,0,.35);
+    opacity: 0; transition: opacity .12s ease-out;
+  }
+  .tip.on { opacity: 1; }
+  .tip b { font-weight: 700; }
+
+  /* ---------- Cobertura (la pieza central) ---------- */
+  .alert-count {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-weight: 700; color: var(--alert); font-size: 14px;
+  }
+  .alert-count.zero { color: var(--accent); }
+  .alert-count svg { width: 16px; height: 16px; }
+
+  .runway { list-style: none; margin: 0; padding: 0; }
+  .runway li { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 4px 14px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .runway li:first-child { border-top: 0; padding-top: 0; }
+  .runway .name { font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .runway .name small { font-weight: 400; color: var(--ink-3); margin-left: 6px; font-size: 12.5px; }
+  .runway .days { grid-row: span 2; align-self: center; text-align: right; font-weight: 700; font-stretch: 80%; font-size: 24px; line-height: 1; }
+  .runway .days small { display: block; font-size: 11.5px; font-weight: 500; color: var(--ink-3); font-stretch: 100%; margin-top: 3px; }
+  .runway li.is-alert .days { color: var(--alert); }
+  .track { position: relative; height: 10px; border-radius: 5px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+  .track .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; background: var(--accent); }
+  .is-alert .track .fill { background: var(--alert); }
+  .track .limit { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); border-radius: 1px; }
+  .scale { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 14px; margin-top: 10px; }
+  .scale div { position: relative; height: 16px; font-size: 11.5px; color: var(--ink-3); }
+  .scale span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .scale span:first-child { transform: none; }
+  .scale span:last-child { transform: translateX(-100%); }
+  .scale span.lim { color: var(--ink); font-weight: 600; }
+
+  .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; padding: 2px; background: var(--surface-2); }
+  .seg button {
+    border: 0; background: transparent; color: var(--ink-2);
+    font: 600 13px var(--font); padding: 5px 10px; border-radius: 6px; cursor: pointer;
+    transition: background-color .15s ease-out, color .15s ease-out;
+  }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--accent); box-shadow: 0 1px 2px rgba(19,32,30,.12); }
+
+  /* ---------- Rankings ---------- */
+  .rank { list-style: none; margin: 0; padding: 0; counter-reset: r; }
+  .rank li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 7px 0; }
+  .rank li::before { counter-increment: r; content: counter(r); color: var(--ink-3); font-size: 12.5px; font-weight: 600; }
+  .rank .label { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank .val { font-weight: 700; font-size: 14px; }
+  .rank .bar { grid-column: 2 / 4; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+  .rank .bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+  .rank li:first-child .bar i { background: var(--ink); }
+
+  /* ---------- Tabla de inventario ---------- */
+  .tools { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+  .search {
+    height: 34px; width: 240px; padding: 0 12px;
+    border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface);
+    font: 400 14px var(--font); color: var(--ink); caret-color: var(--accent);
+  }
+  .search::placeholder { color: var(--ink-3); }
+  .search:focus { outline: 2px solid var(--accent-2); outline-offset: 0; border-color: transparent; }
+  .table-wrap { overflow-x: auto; margin: 0 -24px -24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 14px; text-align: left; white-space: nowrap; }
+  th:first-child, td:first-child { padding-left: 24px; }
+  th:last-child, td:last-child { padding-right: 24px; }
+  thead th {
+    position: sticky; top: 0; background: var(--surface-2);
+    font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  }
+  td.num, th.num { text-align: right; }
+  tbody tr { border-bottom: 1px solid var(--line); }
+  tbody tr:last-child { border-bottom: 0; }
+  tbody tr:hover { background: var(--surface-2); }
+  td .sub { display: block; color: var(--ink-3); font-size: 12.5px; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: var(--accent-soft); color: var(--accent); }
+  .chip.alert { background: var(--alert-soft); color: var(--alert); }
+  .chip.none { background: var(--surface-2); color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line); }
+
+  /* ---------- Vacíos ---------- */
+  .empty { padding: 28px 4px; color: var(--ink-2); font-size: 14.5px; max-width: 46ch; }
+  .empty b { display: block; color: var(--ink); font-size: 15.5px; margin-bottom: 4px; }
+
+  footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ---------- Responsivo ---------- */
+  @media (max-width: 1100px) {
+    .ledger { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .ledger div:nth-child(4) { padding-left: 0; border-left: 0; }
+    .ledger div:nth-child(n+4) { border-top: 1px solid var(--line); }
+    .grid-main { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 760px) {
+    .wrap { padding: 0 16px 32px; }
+    .top { flex-wrap: wrap; gap: 12px; }
+    .top .meta { margin-left: 0; width: 100%; justify-content: space-between; }
+    .brand span { display: none; }
+    .ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ledger div:nth-child(n) { padding-left: 14px; border-left: 1px solid var(--line); border-top: 0; }
+    .ledger div:nth-child(odd) { padding-left: 0; border-left: 0; }
+    .ledger div:nth-child(n+3) { border-top: 1px solid var(--line); }
+    .ledger dd { font-size: 28px; }
+    .grid-two { grid-template-columns: minmax(0, 1fr); }
+    .panel { padding: 18px 16px 20px; }
+    .panel-head { flex-wrap: wrap; }
+    .tools { width: 100%; margin-left: 0; flex-wrap: wrap; }
+    .search { width: 100%; }
+    .table-wrap { margin: 0 -16px -20px; }
+    th:first-child, td:first-child { padding-left: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><b>MANAPLAS</b><span>Seguimiento de producción</span></div>
+    <div class="meta">
+      <span id="stamp"></span>
+      <a class="btn" id="refresh" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+        Actualizar
+      </a>
+    </div>
+  </header>
+
+  <dl class="ledger" id="ledger"></dl>
+
+  <section class="grid-main">
+    <article class="panel">
+      <div class="panel-head">
+        <h2>Kilos procesados por día</h2>
+        <p>Materia prima + colorante</p>
+        <span class="right"><span class="legend-avg" id="avgLabel"></span><span id="rangeLabel"></span></span>
+      </div>
+      <div class="chart" id="dayChart"></div>
+    </article>
+
+    <article class="panel" id="riskPanel">
+      <div class="panel-head">
+        <h2>Cobertura de inventario</h2>
+        <span class="right" id="alertCount"></span>
+      </div>
+      <div class="panel-head" style="margin-top:-6px">
+        <div class="seg" role="group" aria-label="Tipo de inventario">
+          <button type="button" data-kind="materiales" aria-pressed="true">Materia prima</button>
+          <button type="button" data-kind="colores" aria-pressed="false">Colorantes</button>
+        </div>
+        <p class="right">Días que alcanza la existencia</p>
+      </div>
+      <div id="runway"></div>
+    </article>
+  </section>
+
+  <section class="grid-two">
+    <article class="panel">
+      <div class="panel-head"><h2>Productos con más volumen</h2><p>Cantidad producida</p></div>
+      <div id="topProductos"></div>
+    </article>
+    <article class="panel">
+      <div class="panel-head"><h2>Colores con más consumo</h2><p>Kg de colorante</p></div>
+      <div id="topColores"></div>
+    </article>
+  </section>
+
+  <section class="panel" style="margin-top:24px">
+    <div class="panel-head">
+      <h2 id="tableTitle">Inventario de materia prima</h2>
+      <div class="tools">
+        <div class="seg" role="group" aria-label="Tabla de inventario">
+          <button type="button" data-table="materiales" aria-pressed="true">Materia prima</button>
+          <button type="button" data-table="colores" aria-pressed="false">Colorantes</button>
+        </div>
+        <input class="search" id="search" type="search" placeholder="Buscar por nombre o código" aria-label="Buscar en el inventario">
+      </div>
+    </div>
+    <div class="table-wrap" id="table"></div>
+  </section>
+
+  <footer>
+    <span>Producción: calculada en vivo desde la hoja Seguimiento.</span>
+    <span>Inventario: tal como quedó la última vez que se corrió “Cruzar inventario (Inv)”.</span>
+  </footer>
+</div>
+
+<div class="tip" id="tip" role="status"></div>
+
+<script>
+  var DATA = <?!= JSON.stringify({ datos: datos, inventario: inventario, ahora: ahora, url: ScriptApp.getService().getUrl() }).replace(/</g, '\\u003c') ?>;
+</script>
+<script>
+(function () {
+  var d = DATA.datos || {};
+  var inv = DATA.inventario || { materiales: [], colores: [], alertas: 0 };
+  var LIMITE = 7;      // mismo umbral que usa la hoja para las alertas
+  var ESCALA = 30;     // la barra de cobertura llega hasta 30 días
+
+  var nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
+  var nf1 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 1 });
+  var meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+  function kg(v) { return isNum(v) ? nf0.format(v) : '—'; }
+  function fecha(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+    return m ? (+m[3]) + ' ' + meses[+m[2] - 1] : String(s || '');
+  }
+
+  // ---------- Encabezado ----------
+  $('stamp').textContent = 'Actualizado ' + (DATA.ahora || '');
+  $('refresh').href = DATA.url || '#';
+  if (!DATA.url) $('refresh').addEventListener('click', function (e) { e.preventDefault(); location.reload(); });
+
+  // ---------- Libro de cifras ----------
+  var totalKg = (d.totalKgMp || 0) + (d.totalKgColor || 0);
+  var cifras = [
+    ['Órdenes', nf0.format(d.totalOrdenes || 0), ''],
+    ['Días con producción', nf0.format(d.diasDistintos || 0), ''],
+    ['Productos distintos', nf0.format(d.productosCount || 0), ''],
+    ['Materia prima', nf0.format(d.totalKgMp || 0), 'kg'],
+    ['Colorante', nf1.format(d.totalKgColor || 0), 'kg'],
+    ['Total procesado', nf0.format(totalKg), 'kg', 'total']
+  ];
+  $('ledger').innerHTML = cifras.map(function (c) {
+    return '<div class="' + (c[3] || '') + '"><dt>' + c[0] + '</dt><dd>' + c[1] + (c[2] ? '<small>' + c[2] + '</small>' : '') + '</dd></div>';
+  }).join('');
+
+  // ---------- Gráfica por día ----------
+  function dibujarDias() {
+    var fechas = d.fechas || [], vals = d.kgPorFecha || [];
+    var box = $('dayChart');
+    if (!fechas.length) {
+      box.innerHTML = '<div class="empty"><b>Todavía no hay producción registrada.</b>Cuando la hoja Seguimiento tenga órdenes con cantidad, aquí verás los kilos de cada día.</div>';
+      return;
+    }
+    $('rangeLabel').textContent = '  ·  ' + fecha(fechas[0]) + ' – ' + fecha(fechas[fechas.length - 1]);
+    box.innerHTML = '';
+    var W = Math.max(box.clientWidth, 280), H = Math.max(box.clientHeight, 260), padL = 44, padR = 8, padT = 14, padB = 28;
+    var max = Math.max.apply(null, vals.concat([1]));
+    var paso = Math.pow(10, Math.floor(Math.log10(max)));
+    var tope = Math.ceil(max / paso) * paso; if (tope / paso <= 3) { paso /= 2; tope = Math.ceil(max / paso) * paso; }
+    var n = vals.length, cw = (W - padL - padR) / n, bw = Math.max(Math.min(cw * 0.68, 46), 3);
+    var y = function (v) { return padT + (H - padT - padB) * (1 - v / tope); };
+    var prom = vals.reduce(function (a, b) { return a + b; }, 0) / n;
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" height="' + H + '" role="img" aria-label="Kilos procesados por día">';
+    s += '<g class="axis">';
+    for (var t = 0; t <= tope + 1e-9; t += paso) {
+      s += '<line class="gridline" x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(t) + '" y2="' + y(t) + '"/>';
+      s += '<text x="' + (padL - 8) + '" y="' + (y(t) + 4) + '" text-anchor="end">' + nf0.format(t) + '</text>';
+    }
+    var cada = Math.ceil(n / Math.max(1, Math.floor((W - padL) / 64)));
+    for (var i = 0; i < n; i++) if (i % cada === 0 || (i === n - 1 && (n - 1) % cada >= Math.ceil(cada / 2))) {
+      s += '<text x="' + (padL + cw * i + cw / 2) + '" y="' + (H - 8) + '" text-anchor="middle">' + fecha(fechas[i]) + '</text>';
+    }
+    s += '</g>';
+    for (var j = 0; j < n; j++) {
+      var x = padL + cw * j + (cw - bw) / 2, h = Math.max(H - padB - y(vals[j]), vals[j] > 0 ? 1.5 : 0);
+      s += '<rect class="bar-hit" data-i="' + j + '" x="' + (padL + cw * j) + '" y="' + padT + '" width="' + cw + '" height="' + (H - padT - padB) + '" fill="transparent"/>';
+      s += '<rect class="bar" x="' + x + '" y="' + (H - padB - h) + '" width="' + bw + '" height="' + h + '" rx="2"/>';
+    }
+    s += '<line class="avg" x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(prom) + '" y2="' + y(prom) + '"/>';
+    s += '</svg>';
+    box.innerHTML = s;
+    $('avgLabel').innerHTML = '<i></i>Promedio ' + nf0.format(prom) + ' kg/día';
+
+    var tip = $('tip');
+    box.querySelectorAll('.bar-hit').forEach(function (r) {
+      r.addEventListener('mousemove', function (e) {
+        var k = +r.getAttribute('data-i');
+        tip.innerHTML = '<b>' + nf0.format(vals[k]) + ' kg</b> · ' + fecha(fechas[k]);
+        tip.style.left = e.pageX + 'px'; tip.style.top = (e.pageY - 12) + 'px';
+        tip.classList.add('on');
+      });
+      r.addEventListener('mouseleave', function () { tip.classList.remove('on'); });
+    });
+  }
+
+  // ---------- Cobertura ----------
+  var tipoRunway = 'materiales';
+  function filas(kind) {
+    return (inv[kind] || []).map(function (r) {
+      return kind === 'materiales'
+        ? { nombre: r.nombreDescriptivo || r.nombre, sub: r.nombreDescriptivo && r.nombreDescriptivo !== r.nombre ? r.nombre : (r.familia || ''), dias: r.diasCobertura, existencia: r.existenciaActual, prom: r.promedioDiario, consumo: r.kgConsumido, familia: r.familia }
+        : { nombre: r.nombre || r.codigo, sub: r.codigo, dias: r.diasCobertura, existencia: r.existencia, prom: r.promedioDiario, consumo: r.kgConsumido };
+    });
+  }
+  function dibujarCobertura() {
+    var lista = filas(tipoRunway);
+    var conNum = lista.filter(function (r) { return isNum(r.dias); });
+    var enAlerta = conNum.filter(function (r) { return r.dias < LIMITE; }).length;
+    var totalAlertas = inv.alertas || 0;
+    var ac = $('alertCount');
+    ac.className = 'right alert-count' + (totalAlertas ? '' : ' zero');
+    ac.innerHTML = totalAlertas
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17.5v.01"/></svg>' + totalAlertas + (totalAlertas === 1 ? ' insumo' : ' insumos') + ' por debajo de ' + LIMITE + ' días'
+      : 'Nada por debajo de ' + LIMITE + ' días';
+
+    var box = $('runway');
+    if (!lista.length) {
+      box.innerHTML = '<div class="empty"><b>Sin datos de inventario.</b>Corre “📦 Cruzar inventario (Inv)” en la hoja y vuelve a abrir esta página.</div>';
+      return;
+    }
+    var visibles = conNum.slice(0, 8);
+    if (!visibles.length) {
+      box.innerHTML = '<div class="empty"><b>Ningún insumo tiene días de cobertura calculados.</b>Revisa que el cruce de inventario encuentre su existencia (aparecen como “sin match”).</div>';
+      return;
+    }
+    var pct = function (v) { return Math.max(0, Math.min(v, ESCALA)) / ESCALA * 100; };
+    var html = '<ul class="runway">' + visibles.map(function (r) {
+      var alerta = r.dias < LIMITE;
+      return '<li class="' + (alerta ? 'is-alert' : '') + '">' +
+        '<div class="name" title="' + esc(r.nombre) + '">' + esc(r.nombre) + (r.sub ? '<small>' + esc(r.sub) + '</small>' : '') + '</div>' +
+        '<div class="days">' + (r.dias > 99 ? '99+' : nf1.format(r.dias)) + '<small>días</small></div>' +
+        '<div class="track" aria-hidden="true"><span class="fill" style="width:' + pct(r.dias) + '%"></span><span class="limit" style="left:calc(' + pct(LIMITE) + '% - 1px)"></span></div>' +
+        '</li>';
+    }).join('') + '</ul>';
+    html += '<div class="scale" aria-hidden="true"><div><span style="left:0">0</span><span class="lim" style="left:' + pct(LIMITE) + '%">' + LIMITE + ' días</span><span style="left:50%">15</span><span style="left:100%">' + ESCALA + '+</span></div><div></div></div>';
+    var sinDato = lista.length - conNum.length, fuera = conNum.length - visibles.length, notas = [];
+    if (fuera > 0) notas.push(fuera + ' con más cobertura no se muestran aquí');
+    if (sinDato > 0) notas.push(sinDato + ' sin días calculados');
+    if (notas.length) html += '<p style="margin:14px 0 0;color:var(--ink-3);font-size:13px">' + notas.join(' y ') + '. Todos están en la tabla de abajo.</p>';
+    box.innerHTML = html;
+  }
+
+  // ---------- Rankings ----------
+  function ranking(id, pares, unidad, vacio) {
+    var box = $(id);
+    if (!pares || !pares.length) { box.innerHTML = '<div class="empty">' + vacio + '</div>'; return; }
+    var max = pares[0][1] || 1;
+    box.innerHTML = '<ol class="rank">' + pares.map(function (p) {
+      return '<li><span class="label" title="' + esc(p[0]) + '">' + esc(p[0]) + '</span><span class="val">' + (unidad === 'kg' ? nf1.format(p[1]) + ' kg' : nf0.format(p[1])) + '</span>' +
+        '<span class="bar"><i style="width:' + (p[1] / max * 100) + '%"></i></span></li>';
+    }).join('') + '</ol>';
+  }
+
+  // ---------- Tabla ----------
+  var tipoTabla = 'materiales';
+  function dibujarTabla() {
+    var q = $('search').value.trim().toLowerCase();
+    var lista = filas(tipoTabla).filter(function (r) {
+      return !q || (r.nombre + ' ' + (r.sub || '')).toLowerCase().indexOf(q) !== -1;
+    });
+    $('tableTitle').textContent = tipoTabla === 'materiales' ? 'Inventario de materia prima' : 'Inventario de colorantes';
+    var box = $('table');
+    if (!filas(tipoTabla).length) {
+      box.innerHTML = '<div class="empty" style="padding:24px">Sin datos de inventario. Corre “📦 Cruzar inventario (Inv)” en la hoja.</div>'; return;
+    }
+    if (!lista.length) {
+      box.innerHTML = '<div class="empty" style="padding:24px">Nada coincide con “' + esc(q) + '”.</div>'; return;
+    }
+    var h = '<table><thead><tr><th>' + (tipoTabla === 'materiales' ? 'Material' : 'Colorante') + '</th>' +
+      '<th class="num">Consumo del periodo</th><th class="num">Existencia</th><th class="num">Promedio diario</th><th class="num">Cobertura</th></tr></thead><tbody>';
+    h += lista.map(function (r) {
+      var chip = isNum(r.dias)
+        ? '<span class="chip' + (r.dias < LIMITE ? ' alert' : '') + '">' + nf1.format(r.dias) + ' días</span>'
+        : '<span class="chip none">' + esc(r.dias || 'Sin dato') + '</span>';
+      return '<tr><td>' + esc(r.nombre) + (r.sub ? '<span class="sub">' + esc(r.sub) + '</span>' : '') + '</td>' +
+        '<td class="num">' + kg(r.consumo) + ' kg</td>' +
+        '<td class="num">' + (isNum(r.existencia) ? kg(r.existencia) + ' kg' : esc(r.existencia || '—')) + '</td>' +
+        '<td class="num">' + (isNum(r.prom) ? nf1.format(r.prom) + ' kg' : esc(r.prom || '—')) + '</td>' +
+        '<td class="num">' + chip + '</td></tr>';
+    }).join('');
+    box.innerHTML = h + '</tbody></table>';
+  }
+
+  function seg(attr, fn) {
+    document.querySelectorAll('[data-' + attr + ']').forEach(function (b) {
+      b.addEventListener('click', function () {
+        document.querySelectorAll('[data-' + attr + ']').forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+        fn(b.getAttribute('data-' + attr));
+      });
+    });
+  }
+  seg('kind', function (k) { tipoRunway = k; dibujarCobertura(); dibujarDias(); });
+  seg('table', function (k) { tipoTabla = k; dibujarTabla(); });
+  $('search').addEventListener('input', dibujarTabla);
+
+  dibujarCobertura();
+  ranking('topProductos', d.topProductos, 'pz', 'Sin productos registrados todavía.');
+  ranking('topColores', d.topColores, 'kg', 'Sin consumo de colorante registrado todavía.');
+  dibujarTabla();
+  dibujarDias(); // al final: su alto se ajusta al panel de cobertura
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(dibujarDias);
+
+  var t; window.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(dibujarDias, 120); });
+})();
+</script>
+</body>
+</html>
