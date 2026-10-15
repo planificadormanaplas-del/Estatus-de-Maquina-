@@ -20,3 +20,4 @@ Notas:
 - https://github.com/nextlevelbuilder/ui-ux-pro-max-skill @ 56ea9cf: 7 skills de su `.claude/skills/` (lo mismo que instala `uipro init --ai claude`).
 - https://github.com/VoltAgent/awesome-claude-code-subagents @ 408d3c9: 163 subagentes de las 10 categorías en `.claude/agents/` (incluye agent-installer).
 - https://github.com/headroomlabs-ai/headroom: NO instalado aquí; es un proxy local (`pip install "headroom-ai[all]"` + `headroom wrap claude`), pensado para tu PC.
+- https://github.com/nidhinjs/prompt-master @ 769bf64: skill `prompt-master` (SKILL.md + references).
