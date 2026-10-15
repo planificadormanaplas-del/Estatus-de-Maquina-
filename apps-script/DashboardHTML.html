@@ -246,7 +246,7 @@
   <section class="grid-main">
     <article class="panel">
       <div class="panel-head">
-        <h2>Kilos procesados por día</h2>
+        <h2>Kilos en órdenes por fecha de emisión</h2>
         <p>Materia prima + colorante</p>
         <span class="right"><span class="legend-avg" id="avgLabel"></span><span id="rangeLabel"></span></span>
       </div>
@@ -295,7 +295,7 @@
   </section>
 
   <footer>
-    <span>Producción: calculada en vivo desde la hoja Seguimiento.</span>
+    <span>Kilos: material total de cada orden (Cantidad × Peso) según la fecha de emisión, calculado en vivo desde la hoja Seguimiento.</span>
     <span>Inventario: tal como quedó la última vez que se corrió “Cruzar inventario (Inv)”.</span>
   </footer>
 </div>
@@ -334,11 +334,11 @@
   var totalKg = (d.totalKgMp || 0) + (d.totalKgColor || 0);
   var cifras = [
     ['Órdenes', nf0.format(d.totalOrdenes || 0), ''],
-    ['Días con producción', nf0.format(d.diasDistintos || 0), ''],
+    ['Días con órdenes', nf0.format(d.diasDistintos || 0), ''],
     ['Productos distintos', nf0.format(d.productosCount || 0), ''],
     ['Materia prima', nf0.format(d.totalKgMp || 0), 'kg'],
     ['Colorante', nf1.format(d.totalKgColor || 0), 'kg'],
-    ['Total procesado', nf0.format(totalKg), 'kg', 'total']
+    ['Total en órdenes', nf0.format(totalKg), 'kg', 'total']
   ];
   $('ledger').innerHTML = cifras.map(function (c) {
     return '<div class="' + (c[3] || '') + '"><dt>' + c[0] + '</dt><dd>' + c[1] + (c[2] ? '<small>' + c[2] + '</small>' : '') + '</dd></div>';
@@ -349,7 +349,7 @@
     var fechas = d.fechas || [], vals = d.kgPorFecha || [];
     var box = $('dayChart');
     if (!fechas.length) {
-      box.innerHTML = '<div class="empty"><b>Todavía no hay producción registrada.</b>Cuando la hoja Seguimiento tenga órdenes con cantidad, aquí verás los kilos de cada día.</div>';
+      box.innerHTML = '<div class="empty"><b>Todavía no hay producción registrada.</b>Cuando la hoja Seguimiento tenga órdenes con cantidad, aquí verás los kilos de las órdenes emitidas cada día.</div>';
       return;
     }
     $('rangeLabel').textContent = '  ·  ' + fecha(fechas[0]) + ' – ' + fecha(fechas[fechas.length - 1]);
@@ -361,7 +361,7 @@
     var n = vals.length, cw = (W - padL - padR) / n, bw = Math.max(Math.min(cw * 0.68, 46), 3);
     var y = function (v) { return padT + (H - padT - padB) * (1 - v / tope); };
     var prom = vals.reduce(function (a, b) { return a + b; }, 0) / n;
-    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" height="' + H + '" role="img" aria-label="Kilos procesados por día">';
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" height="' + H + '" role="img" aria-label="Kilos en órdenes por fecha de emisión">';
     s += '<g class="axis">';
     for (var t = 0; t <= tope + 1e-9; t += paso) {
       s += '<line class="gridline" x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(t) + '" y2="' + y(t) + '"/>';
