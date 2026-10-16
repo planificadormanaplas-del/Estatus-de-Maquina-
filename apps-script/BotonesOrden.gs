@@ -1,179 +1,155 @@
 /**
- * Botones para el Maestro de la Orden de Producción.
+ * Botones extra para el menú "Órdenes de Producción".
  *
- *  - Reorganizar Maestro: ordena las filas del Maestro por número de OP
- *    (las filas de una misma OP conservan su orden).
- *  - Mover OP: lleva una OP a otra posición y corre las demás
+ *  - boReorganizar: ordena el Maestro por número de OP (sin cambiar números).
+ *  - boMoverOP: lleva una OP a otra posición y corre las demás
  *    (ej. la OP 5 pasa a ser la 2; la 2, 3 y 4 pasan a ser 3, 4 y 5).
- *  - Intercambiar OP: cambia dos OP entre sí (ej. la 3 por la 7).
+ *  - boIntercambiarOP: cambia dos OP entre sí (ej. la 3 por la 7).
  *
  * Cada hoja 01..14 muestra la OP con su mismo número, así que al cambiar
  * el número de OP en el Maestro la orden pasa a la hoja correspondiente.
+ * Solo se mueven las columnas que se escriben a mano; las de fórmula se
+ * recalculan solas.
  *
- * Solo se mueven las columnas que se escriben a mano; las columnas con
- * fórmula se recalculan solas.
+ * Todo lo interno vive dentro de BO_ para no chocar con otros archivos
+ * del proyecto.
  */
 
-var HOJA_MAESTRO = 'Maestro';
-var PRIMERA_FILA = 2;
-var ULTIMA_FILA = 250;
-// Columnas que se escriben a mano: A OP, B MAQ, D Sku, E SKU Componente,
-// G Material, I Cantidad, J Color, R ¿Producto importante?
-var COLUMNAS_DATOS = [1, 2, 4, 5, 7, 9, 10, 18];
+function boReorganizar() { BO_.reorganizar(); }
+function boMoverOP() { BO_.mover(); }
+function boIntercambiarOP() { BO_.intercambiar(); }
 
-/**
- * Ejecutar UNA sola vez desde Apps Script (botón "Ejecutar").
- * Crea un activador propio para este menú, así no choca con el onOpen
- * que ya exista en otros archivos del proyecto.
- */
-function instalarMenu() {
-  var ss = SpreadsheetApp.getActive();
-  ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'menuBotonesOrden') ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger('menuBotonesOrden').forSpreadsheet(ss).onOpen().create();
-  menuBotonesOrden();
-  ss.toast('Menú "Orden de Producción" instalado.', 'Listo', 5);
-}
+var BO_ = (function () {
+  var HOJA = 'Maestro';
+  var PRIMERA = 2;
+  var ULTIMA = 250;
+  // A OP, B MAQ, D Sku, E SKU Componente, G Material, I Cantidad, J Color,
+  // R ¿Producto importante?
+  var COLS = [1, 2, 4, 5, 7, 9, 10, 18];
 
-function menuBotonesOrden() {
-  SpreadsheetApp.getUi()
-    .createMenu('Orden de Producción')
-    .addItem('Reorganizar Maestro por OP', 'reorganizarMaestro')
-    .addItem('Mover OP a otra posición', 'moverOP')
-    .addItem('Intercambiar dos OP', 'intercambiarOP')
-    .addToUi();
-}
-
-function reorganizarMaestro() {
-  var filas = leerFilas_();
-  escribirFilas_(ordenarPorOP_(filas));
-  SpreadsheetApp.getActive().toast('Maestro reorganizado por OP.', 'Listo', 4);
-}
-
-function moverOP() {
-  var ui = SpreadsheetApp.getUi();
-  var filas = leerFilas_();
-  var ops = opsExistentes_(filas);
-  if (ops.length < 2) {
-    ui.alert('Se necesitan al menos dos OP en el Maestro.');
-    return;
+  function hoja() {
+    var h = SpreadsheetApp.getActive().getSheetByName(HOJA);
+    if (!h) throw new Error('No se encontró la hoja "' + HOJA + '".');
+    return h;
   }
-  var origen = pedirOP_('Mover OP', '¿Qué OP quieres mover? (' + ops.join(', ') + ')', ops);
-  if (origen === null) return;
-  var destino = pedirOP_('Mover OP', '¿A qué posición la llevas? (' + ops.join(', ') + ')', ops);
-  if (destino === null || destino === origen) return;
 
-  // Nuevo orden: se saca la OP de su lugar y se inserta en la posición destino.
-  var orden = ops.filter(function (op) { return op !== origen; });
-  orden.splice(ops.indexOf(destino), 0, origen);
-  var nuevoNumero = {};
-  orden.forEach(function (op, i) { nuevoNumero[op] = ops[i]; });
-
-  aplicarNumeros_(filas, nuevoNumero);
-  escribirFilas_(ordenarPorOP_(filas));
-  SpreadsheetApp.getActive().toast('La OP ' + origen + ' ahora es la OP ' + destino + '.', 'Listo', 5);
-}
-
-function intercambiarOP() {
-  var ui = SpreadsheetApp.getUi();
-  var filas = leerFilas_();
-  var ops = opsExistentes_(filas);
-  if (ops.length < 2) {
-    ui.alert('Se necesitan al menos dos OP en el Maestro.');
-    return;
+  function leer() {
+    var total = ULTIMA - PRIMERA + 1;
+    var valores = hoja().getRange(PRIMERA, 1, total, 18).getValues();
+    var filas = [];
+    valores.forEach(function (fila) {
+      var datos = COLS.map(function (c) { return fila[c - 1]; });
+      if (datos.some(function (v) { return v !== '' && v !== null; })) filas.push(datos);
+    });
+    return filas;
   }
-  var a = pedirOP_('Intercambiar OP', 'Primera OP (' + ops.join(', ') + ')', ops);
-  if (a === null) return;
-  var b = pedirOP_('Intercambiar OP', 'Segunda OP (' + ops.join(', ') + ')', ops);
-  if (b === null || a === b) return;
 
-  var nuevoNumero = {};
-  nuevoNumero[a] = b;
-  nuevoNumero[b] = a;
-  aplicarNumeros_(filas, nuevoNumero);
-  escribirFilas_(ordenarPorOP_(filas));
-  SpreadsheetApp.getActive().toast('Se intercambiaron la OP ' + a + ' y la OP ' + b + '.', 'Listo', 5);
-}
+  function escribir(filas) {
+    var h = hoja();
+    var total = ULTIMA - PRIMERA + 1;
+    COLS.forEach(function (col, i) {
+      var columna = [];
+      for (var f = 0; f < total; f++) columna.push([f < filas.length ? filas[f][i] : '']);
+      h.getRange(PRIMERA, col, total, 1).setValues(columna);
+    });
+    SpreadsheetApp.flush();
+  }
 
-// ---------- auxiliares ----------
+  function numero(v) {
+    if (v === '' || v === null) return null;
+    var n = Number(v);
+    return isNaN(n) ? null : n;
+  }
 
-function hoja_() {
-  var hoja = SpreadsheetApp.getActive().getSheetByName(HOJA_MAESTRO);
-  if (!hoja) throw new Error('No se encontró la hoja "' + HOJA_MAESTRO + '".');
-  return hoja;
-}
+  /** Orden estable por OP; las filas sin OP quedan al final. */
+  function ordenar(filas) {
+    return filas
+      .map(function (fila, i) { return { fila: fila, i: i, op: numero(fila[0]) }; })
+      .sort(function (x, y) {
+        if (x.op === null && y.op === null) return x.i - y.i;
+        if (x.op === null) return 1;
+        if (y.op === null) return -1;
+        return x.op - y.op || x.i - y.i;
+      })
+      .map(function (x) { return x.fila; });
+  }
 
-/** Devuelve las filas con datos: cada una es la lista de valores de COLUMNAS_DATOS. */
-function leerFilas_() {
-  var total = ULTIMA_FILA - PRIMERA_FILA + 1;
-  var valores = hoja_().getRange(PRIMERA_FILA, 1, total, 18).getValues();
-  var filas = [];
-  valores.forEach(function (fila) {
-    var datos = COLUMNAS_DATOS.map(function (c) { return fila[c - 1]; });
-    var tieneAlgo = datos.some(function (v) { return v !== '' && v !== null; });
-    if (tieneAlgo) filas.push(datos);
-  });
-  return filas;
-}
+  function opsDe(filas) {
+    var vistos = {};
+    filas.forEach(function (fila) {
+      var op = numero(fila[0]);
+      if (op !== null) vistos[op] = true;
+    });
+    return Object.keys(vistos).map(Number).sort(function (a, b) { return a - b; });
+  }
 
-/** Escribe las filas desde la fila 2 y deja vacías las que sobran. */
-function escribirFilas_(filas) {
-  var hoja = hoja_();
-  var total = ULTIMA_FILA - PRIMERA_FILA + 1;
-  COLUMNAS_DATOS.forEach(function (col, i) {
-    var columna = [];
-    for (var f = 0; f < total; f++) {
-      columna.push([f < filas.length ? filas[f][i] : '']);
+  function renumerar(filas, mapa) {
+    filas.forEach(function (fila) {
+      var op = numero(fila[0]);
+      if (op !== null && mapa.hasOwnProperty(op)) fila[0] = mapa[op];
+    });
+  }
+
+  function pedir(titulo, mensaje, ops) {
+    var ui = SpreadsheetApp.getUi();
+    var r = ui.prompt(titulo, mensaje + ' (' + ops.join(', ') + ')', ui.ButtonSet.OK_CANCEL);
+    if (r.getSelectedButton() !== ui.Button.OK) return null;
+    var op = numero(r.getResponseText().trim());
+    if (op === null || ops.indexOf(op) === -1) {
+      ui.alert('"' + r.getResponseText() + '" no es una OP del Maestro.');
+      return null;
     }
-    hoja.getRange(PRIMERA_FILA, col, total, 1).setValues(columna);
-  });
-  SpreadsheetApp.flush();
-}
-
-/** Orden estable por OP; las filas sin OP quedan al final. */
-function ordenarPorOP_(filas) {
-  return filas
-    .map(function (fila, i) { return { fila: fila, i: i, op: numeroOP_(fila[0]) }; })
-    .sort(function (x, y) {
-      if (x.op === null && y.op === null) return x.i - y.i;
-      if (x.op === null) return 1;
-      if (y.op === null) return -1;
-      return x.op - y.op || x.i - y.i;
-    })
-    .map(function (x) { return x.fila; });
-}
-
-function opsExistentes_(filas) {
-  var vistos = {};
-  filas.forEach(function (fila) {
-    var op = numeroOP_(fila[0]);
-    if (op !== null) vistos[op] = true;
-  });
-  return Object.keys(vistos).map(Number).sort(function (a, b) { return a - b; });
-}
-
-function aplicarNumeros_(filas, nuevoNumero) {
-  filas.forEach(function (fila) {
-    var op = numeroOP_(fila[0]);
-    if (op !== null && nuevoNumero.hasOwnProperty(op)) fila[0] = nuevoNumero[op];
-  });
-}
-
-function numeroOP_(valor) {
-  if (valor === '' || valor === null) return null;
-  var n = Number(valor);
-  return isNaN(n) ? null : n;
-}
-
-function pedirOP_(titulo, mensaje, ops) {
-  var ui = SpreadsheetApp.getUi();
-  var r = ui.prompt(titulo, mensaje, ui.ButtonSet.OK_CANCEL);
-  if (r.getSelectedButton() !== ui.Button.OK) return null;
-  var op = numeroOP_(r.getResponseText().trim());
-  if (op === null || ops.indexOf(op) === -1) {
-    ui.alert('"' + r.getResponseText() + '" no es una OP del Maestro.');
-    return null;
+    return op;
   }
-  return op;
-}
+
+  function preparar() {
+    var filas = leer();
+    var ops = opsDe(filas);
+    if (ops.length < 2) {
+      SpreadsheetApp.getUi().alert('Se necesitan al menos dos OP en el Maestro.');
+      return null;
+    }
+    return { filas: filas, ops: ops };
+  }
+
+  return {
+    reorganizar: function () {
+      escribir(ordenar(leer()));
+      SpreadsheetApp.getActive().toast('Maestro reorganizado por OP.', 'Listo', 4);
+    },
+
+    mover: function () {
+      var d = preparar();
+      if (!d) return;
+      var origen = pedir('Mover OP', '¿Qué OP quieres mover?', d.ops);
+      if (origen === null) return;
+      var destino = pedir('Mover OP', '¿A qué posición la llevas?', d.ops);
+      if (destino === null || destino === origen) return;
+
+      var orden = d.ops.filter(function (op) { return op !== origen; });
+      orden.splice(d.ops.indexOf(destino), 0, origen);
+      var mapa = {};
+      orden.forEach(function (op, i) { mapa[op] = d.ops[i]; });
+
+      renumerar(d.filas, mapa);
+      escribir(ordenar(d.filas));
+      SpreadsheetApp.getActive().toast('La OP ' + origen + ' ahora es la OP ' + destino + '.', 'Listo', 5);
+    },
+
+    intercambiar: function () {
+      var d = preparar();
+      if (!d) return;
+      var a = pedir('Intercambiar OP', 'Primera OP', d.ops);
+      if (a === null) return;
+      var b = pedir('Intercambiar OP', 'Segunda OP', d.ops);
+      if (b === null || a === b) return;
+
+      var mapa = {};
+      mapa[a] = b;
+      mapa[b] = a;
+      renumerar(d.filas, mapa);
+      escribir(ordenar(d.filas));
+      SpreadsheetApp.getActive().toast('Se intercambiaron la OP ' + a + ' y la OP ' + b + '.', 'Listo', 5);
+    }
+  };
+})();
