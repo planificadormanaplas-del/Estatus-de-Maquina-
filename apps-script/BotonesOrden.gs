@@ -21,7 +21,22 @@ var ULTIMA_FILA = 250;
 // G Material, I Cantidad, J Color, R ¿Producto importante?
 var COLUMNAS_DATOS = [1, 2, 4, 5, 7, 9, 10, 18];
 
-function onOpen() {
+/**
+ * Ejecutar UNA sola vez desde Apps Script (botón "Ejecutar").
+ * Crea un activador propio para este menú, así no choca con el onOpen
+ * que ya exista en otros archivos del proyecto.
+ */
+function instalarMenu() {
+  var ss = SpreadsheetApp.getActive();
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'menuBotonesOrden') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('menuBotonesOrden').forSpreadsheet(ss).onOpen().create();
+  menuBotonesOrden();
+  ss.toast('Menú "Orden de Producción" instalado.', 'Listo', 5);
+}
+
+function menuBotonesOrden() {
   SpreadsheetApp.getUi()
     .createMenu('Orden de Producción')
     .addItem('Reorganizar Maestro por OP', 'reorganizarMaestro')
