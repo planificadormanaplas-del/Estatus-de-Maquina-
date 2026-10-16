@@ -628,6 +628,10 @@ function reglaValidacionComponente(opciones) {
 function aplicarValidacionComponente(rango, opciones) {
   if (opciones.length === 0) { rango.clearDataValidations(); return; }
   var lista = asegurarListaComponentes(rango.getSheet());
+  if (!lista) {  // sin plantilla: lista fija, como antes
+    rango.setDataValidation(reglaValidacionComponente(opciones));
+    return;
+  }
   var reglas = [];
   for (var i = 0; i < rango.getNumRows(); i++) {
     reglas.push([reglaComponenteDeFila(lista, rango.getRow() + i)]);
@@ -1499,48 +1503,37 @@ function avisarMovimientos(ui, movimientos) {
 
 // ---------- Fórmulas y lista de componentes del Maestro (compatibles con Excel) ----------
 
-// Fórmulas de las columnas calculadas, en notación R1C1 (iguales en todas las filas).
-var FORMULAS_MAESTRO = [
-  [3,  '=IF(RC2="","",IFERROR(VLOOKUP(RC2,\'Maq y Tons \'!R3C1:R500C6,3,FALSE),""))'],
-  [6,  '=IF(RC4="","",IFERROR(VLOOKUP(RC4,\'Lista de Productos\'!C2:C4,2,FALSE)," "))'],
-  [8,  '=IF(RC5="","",IFERROR(UPPER(VLOOKUP(RC5,\'Componentes \'!C2:C6,5,FALSE))," "))'],
-  [11, '=IF(RC9="","",IFERROR(IF(RC18="Sí",ROUNDUP(RC14*RC9/25000,0),ROUND(RC14*RC9/25000,0))," "))'],
-  [12, '=IF(RC9="","",IFERROR(RC11*25," "))'],
-  [13, '=IF(RC5="","",IFERROR(VLOOKUP(RC5,\'Componentes \'!C2:C14,12,FALSE)," "))'],
-  [14, '=IF(RC5="","",IFERROR(VLOOKUP(RC5,\'Componentes \'!C2:C14,10,FALSE),""))'],
-  [15, '=IF(RC5="","",IFERROR(VLOOKUP(RC5,\'Componentes \'!C2:C14,13,FALSE),""))'],
-  [16, '=IF(RC5="","",IFERROR((3600*RC15)/RC13,""))'],
-  [17, '=IF(RC16="","",IFERROR(ROUND(RC16*7,0),""))'],
-  [19, '=IF(RC9="","",IFERROR(MROUND(RC11*25000/RC14,10),""))'],
-  [20, '=IF(RC5="","",IFERROR(VLOOKUP(RC5,Caracteristicas!C3:C30,12,0),""))'],
-  [21, '=IF(RC1="","",RC1&"-"&COUNTIF(R2C1:RC1,RC1))']   // U: Clave (no borrar), la usan las hojas 01-14
-];
-
+// Las fórmulas NO se escriben desde el código (así no dependen del idioma ni
+// del separador , o ; de la hoja): se copian de la hoja oculta
+// "Plantilla (no borrar)". Su fila 2 tiene las fórmulas de una fila del
+// Maestro y su fila 4 las de una fila de "Lista Componentes".
+var HOJA_PLANTILLA = 'Plantilla (no borrar)';
+var COLS_FORMULA_MAESTRO = [3, 6, 8, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21]; // C F H K-Q S T U
 var HOJA_LISTA_COMP = 'Lista Componentes';
 var LISTA_COMP_OPCIONES = 7;   // A:G = opciones; H = SKU base; I:O = filas encontradas
-var M_SKU = 'INDEX(Maestro!C4,ROW())';
-var FORMULAS_LISTA_COMP = [
-  [1, LISTA_COMP_OPCIONES, '=IF(RC[8]="","",INDEX(\'Componentes \'!C2,RC[8]))'],
-  [8, 1, '=IF(' + M_SKU + '="","",IF(COUNTIF(\'Componentes \'!C3,' + M_SKU + ')>0,' + M_SKU + '&"",' +
-         'IFERROR(LEFT(' + M_SKU + ',FIND("-",' + M_SKU + '))&"0",' + M_SKU + '&"-0")))'],
-  [9, 1, '=IF(RC8="","",IFERROR(MATCH(RC8,\'Componentes \'!C3,0),""))'],
-  [10, LISTA_COMP_OPCIONES - 1, '=IF(RC[-1]="","",IFERROR(RC[-1]+MATCH(RC8,INDEX(\'Componentes \'!C3,RC[-1]+1):INDEX(\'Componentes \'!C3,ROWS(\'Componentes \'!C3)),0),""))']
-];
+var LISTA_COMP_COLUMNAS = 15;
+
+function hojaPlantilla(ss) {
+  var p = ss.getSheetByName(HOJA_PLANTILLA);
+  if (!p) ss.toast('Falta la hoja oculta "' + HOJA_PLANTILLA + '"; no pude poner las fórmulas.', '⚠️ Revisar', 8);
+  return p;
+}
 
 // Pone las fórmulas en TODAS las filas del Maestro (las filas insertadas
 // llegan sin fórmula) y vuelve a alinear la lista de Componente de cada
 // fila con su fila de "Lista Componentes".
 function asegurarEstructuraMaestro(sheet) {
+  var ss = sheet.getParent();
   var filas = sheet.getMaxRows() - FILA_INICIO + 1;
-  if (filas < 1) return;
-  FORMULAS_MAESTRO.forEach(function (f) {
-    var rango = sheet.getRange(FILA_INICIO, f[0], filas, 1);
-    var actuales = rango.getFormulasR1C1();
-    var bien = actuales.every(function (x) { return x[0] === f[1]; });
-    if (!bien) rango.setFormulaR1C1(f[1]);
+  var plantilla = hojaPlantilla(ss);
+  if (filas < 1 || !plantilla) return;
+  COLS_FORMULA_MAESTRO.forEach(function (c) {
+    plantilla.getRange(2, c).copyTo(sheet.getRange(FILA_INICIO, c, filas, 1),
+                                    SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
   });
 
   var lista = asegurarListaComponentes(sheet);
+  if (!lista) return;
   var ultima = ultimaFilaConDatos(sheet);
   if (ultima < FILA_INICIO) return;
   var n = ultima - FILA_INICIO + 1;
@@ -1555,10 +1548,13 @@ function asegurarEstructuraMaestro(sheet) {
   rangoComp.setDataValidations(reglas);
 }
 
-// Crea (si falta) la hoja oculta "Lista Componentes" con tantas filas como
-// el Maestro y sus fórmulas. Devuelve la hoja.
+// Prepara la hoja oculta "Lista Componentes" (la crea si falta) con tantas
+// filas como el Maestro y sus fórmulas. Devuelve la hoja, o null si no hay
+// plantilla para sacar las fórmulas.
 function asegurarListaComponentes(maestro) {
   var ss = maestro.getParent();
+  var plantilla = hojaPlantilla(ss);
+  if (!plantilla) return null;
   var lista = ss.getSheetByName(HOJA_LISTA_COMP);
   if (!lista) {
     lista = ss.insertSheet(HOJA_LISTA_COMP);
@@ -1567,19 +1563,20 @@ function asegurarListaComponentes(maestro) {
     lista.setFrozenRows(1);
     lista.hideSheet();
   }
-  var columnas = 15;
-  if (lista.getMaxColumns() < columnas) lista.insertColumnsAfter(lista.getMaxColumns(), columnas - lista.getMaxColumns());
+  if (lista.getMaxColumns() < LISTA_COMP_COLUMNAS) {
+    lista.insertColumnsAfter(lista.getMaxColumns(), LISTA_COMP_COLUMNAS - lista.getMaxColumns());
+  }
   var faltan = maestro.getMaxRows() - lista.getMaxRows();
   if (faltan > 0) lista.insertRowsAfter(lista.getMaxRows(), faltan);
 
   var filas = maestro.getMaxRows() - FILA_INICIO + 1;
   if (filas < 1) return lista;
-  FORMULAS_LISTA_COMP.forEach(function (f) {
-    var rango = lista.getRange(FILA_INICIO, f[0], filas, f[1]);
-    var actuales = rango.getFormulasR1C1();
-    var bien = actuales.every(function (fila) { return fila.every(function (x) { return x === f[2]; }); });
-    if (!bien) rango.setFormulaR1C1(f[2]);
-  });
-  lista.getRange(FILA_INICIO, 1, filas, LISTA_COMP_OPCIONES + 1).setNumberFormat('@');
+  var destino = lista.getRange(FILA_INICIO, 1, filas, LISTA_COMP_COLUMNAS);
+  var actual = destino.getFormulas();
+  var completa = actual.every(function (f) { return f[0] !== '' && f[LISTA_COMP_COLUMNAS - 1] !== ''; });
+  if (!completa) {
+    plantilla.getRange(4, 1, 1, LISTA_COMP_COLUMNAS).copyTo(destino, SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+    lista.getRange(FILA_INICIO, 1, filas, LISTA_COMP_OPCIONES + 1).setNumberFormat('@');
+  }
   return lista;
 }
