@@ -58,6 +58,7 @@ function onOpen() {
     .addItem('🔧 Gestionar esta orden (agregar / borrar)', 'gestionarOrden')
     .addItem('🩹 Borrar SIN guardar en Historial (para corregir)', 'borrarOrdenSinHistorial')
     .addItem('🔄 Organizar (cerrar huecos en la numeración)', 'organizarOrdenes')
+    .addItem('✏️ Cambiar número de OP (ej. la 1 pasa a ser la 7)', 'cambiarNumeroOP')
     .addItem('🔀 Mover OP a otra posición', 'moverOP')
     .addItem('🔁 Intercambiar dos OP', 'intercambiarOP')
     .addItem('🧩 Reparar listas desplegables', 'repararListas')
@@ -888,7 +889,11 @@ function borrarOrdenSinHistorial() {
   eliminarFilas(sheet, orden.fila, orden.n);
   limpiarTipoDeMaterialDeHoja(ss, orden.op);
   limpiarObservacionesDeHoja(ss, orden.op);
-  var movimientos = compactarOrdenes(ss, sheet);
+  // Se cierra el hueco sin perder desde dónde empezaba la numeración
+  // (si eran 7, 8, 9 y se borra la 8, quedan 7, 8).
+  var quedan = numerosDeOP(sheet);
+  var inicio = quedan.length > 0 ? Math.min(orden.op, quedan[0]) : 1;
+  var movimientos = compactarOrdenes(ss, sheet, null, inicio);
   var extra = movimientos.length > 0 ? (' Se renumeraron ' + movimientos.length + ' orden(es) para cerrar el hueco.') : '';
   ss.toast('La orden OP ' + orden.op + ' quedó borrada (sin registrar en Historial).' + extra, '🩹 Listo', 8);
 }
@@ -900,20 +905,31 @@ function organizarOrdenes() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(HOJA_MAESTRO);
   if (!sheet) { ui.alert('No encontré la hoja "' + HOJA_MAESTRO + '".'); return; }
+  var ordenes = leerOrdenes(sheet);
+  if (ordenes.length === 0) { ui.alert('No hay órdenes en el Maestro.'); return; }
 
-  var confirmar = ui.alert(
+  // Se numera seguido desde la primera orden del Maestro (de arriba hacia
+  // abajo). Si la primera es la 7, quedan 7, 8, 9...
+  var sugerido = ordenes[0].op;
+  var resp = ui.prompt(
     '🔄 Organizar órdenes',
-    'Esto ordena las órdenes por número y las renumera 1, 2, 3… para cerrar los huecos ' +
-    '(ej: si no hay OP 2, la OP 3 pasa a ser la OP 2).\n\n' +
-    'El "Tipo de Material" y las "Observaciones" de las hojas 01-14 se mueven junto con su orden.\n\n' +
-    'Los números de las órdenes que se muevan van a cambiar. ¿Seguro?',
-    ui.ButtonSet.YES_NO
+    'Las órdenes se numeran seguido, en el orden en que están en el Maestro (de arriba hacia abajo), ' +
+    'cerrando los huecos.\n\n' +
+    '¿Desde qué número empiezo? Déjalo en blanco para empezar desde ' + sugerido + ' (la primera orden).\n\n' +
+    'El "Tipo de Material" y las "Observaciones" de las hojas 01-14 se mueven junto con su orden.',
+    ui.ButtonSet.OK_CANCEL
   );
-  if (confirmar !== ui.Button.YES) return;
+  if (resp.getSelectedButton() !== ui.Button.OK) return;
+  var texto = resp.getResponseText().trim();
+  var inicio = texto === '' ? sugerido : parseInt(texto, 10);
+  if (isNaN(inicio) || (texto !== '' && texto !== inicio.toString()) || inicio < 1) {
+    ui.alert('Escribe un número entero mayor que 0.');
+    return;
+  }
 
-  var movimientos = compactarOrdenes(ss, sheet);
+  var movimientos = compactarOrdenes(ss, sheet, function (ord, enHoja) { return enHoja; }, inicio);
   if (movimientos.length === 0) {
-    ui.alert('No había huecos que cerrar — ya estaba todo organizado.');
+    ui.alert('No había nada que cambiar — ya estaba todo organizado.');
   } else {
     ui.alert('Listo, se renumeraron ' + movimientos.length + ' orden(es):\n\n' + movimientos.join('\n'));
   }
@@ -922,20 +938,22 @@ function organizarOrdenes() {
 // Ordena las órdenes por OP (sin mezclar sus filas) y las renumera 1..k.
 // Mueve también Tipo de Material / Observaciones de las hojas 01-14.
 // Devuelve la lista de cambios de número.
-// ordenDeseado (opcional): las órdenes en el orden en que deben quedar
-// (lo usan Mover OP e Intercambiar OP). Si no se da, se ordenan por número.
-function compactarOrdenes(ss, sheet, ordenDeseado) {
+// ordenDeseado (opcional): función que recibe las órdenes ordenadas por
+// número (y las órdenes tal como están en la hoja) y devuelve el orden en
+// que deben quedar. Si no se da, se ordenan por número.
+// inicio (opcional): número de la primera orden (1 si no se da).
+function compactarOrdenes(ss, sheet, ordenDeseado, inicio) {
+  inicio = inicio || 1;
   var ordenes = leerOrdenes(sheet);
   if (ordenes.length === 0) return [];
 
-  var ordenadas = ordenDeseado
-    ? ordenDeseado(ordenes.slice().sort(function (a, b) { return a.op - b.op; }))
-    : ordenes.slice().sort(function (a, b) { return a.op - b.op; });
+  var porNumero = ordenes.slice().sort(function (a, b) { return a.op - b.op; });
+  var ordenadas = ordenDeseado ? ordenDeseado(porNumero, ordenes.slice()) : porNumero;
   var movimientos = [];
   var mismoOrden = true;
   for (var i = 0; i < ordenadas.length; i++) {
     if (ordenadas[i] !== ordenes[i]) mismoOrden = false;
-    if (ordenadas[i].op !== i + 1) movimientos.push('OP ' + ordenadas[i].op + '  →  OP ' + (i + 1));
+    if (ordenadas[i].op !== inicio + i) movimientos.push('OP ' + ordenadas[i].op + '  →  OP ' + (inicio + i));
   }
   if (movimientos.length === 0 && mismoOrden) return [];
 
@@ -951,7 +969,7 @@ function compactarOrdenes(ss, sheet, ordenDeseado) {
     var col = COLUMNAS_ENTRADA[c];
     var columna = [];
     ordenadas.forEach(function (o, idx) {
-      o.filas.forEach(function (f) { columna.push([col === COL_OP ? idx + 1 : f[col - 1]]); });
+      o.filas.forEach(function (f) { columna.push([col === COL_OP ? inicio + idx : f[col - 1]]); });
     });
     sheet.getRange(primeraFila, col, totalFilas, 1).setValues(columna);
   }
@@ -978,7 +996,7 @@ function compactarOrdenes(ss, sheet, ordenDeseado) {
 
   // Hojas 01-14: cada número nuevo recibe lo de su orden; las que quedan sin orden se limpian.
   for (var nuevo = 1; nuevo <= HOJAS_DE_ORDEN; nuevo++) {
-    var origen = ordenadas[nuevo - 1];
+    var origen = (nuevo - inicio >= 0) ? ordenadas[nuevo - inicio] : null;
     if (origen && origen.op === nuevo) continue; // no cambió
     escribirExtrasEnHoja(ss, nuevo, origen ? extras[origen.op] : null);
   }
@@ -1378,7 +1396,7 @@ function moverOP() {
     var resto = ordenadas.filter(function (o) { return o.op !== origen; });
     resto.splice(ops.indexOf(destino), 0, quien);
     return resto;
-  });
+  }, ops[0]);
   avisarMovimientos(ui, movimientos);
 }
 
@@ -1401,8 +1419,54 @@ function intercambiarOP() {
     copia[ia] = ordenadas[ib];
     copia[ib] = ordenadas[ia];
     return copia;
-  });
+  }, ops[0]);
   avisarMovimientos(ui, movimientos);
+}
+
+// Le pone a una orden el número que quieras, aunque ese número no exista
+// todavía (ej. la 1 pasa a ser la 7). La orden no se mueve de lugar en el
+// Maestro; después "Organizar" numera seguido desde ahí (7, 8, 9...).
+// Si el número nuevo ya lo tiene otra orden, ofrece intercambiarlas.
+function cambiarNumeroOP() {
+  var ui = SpreadsheetApp.getUi();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(HOJA_MAESTRO);
+  if (!sheet) { ui.alert('No encontré la hoja "' + HOJA_MAESTRO + '".'); return; }
+  var ordenes = leerOrdenes(sheet);
+  if (ordenes.length === 0) { ui.alert('No hay órdenes en el Maestro.'); return; }
+  var ops = numerosDeOP(sheet);
+
+  var viejo = pedirOPExistente(ui, '✏️ Cambiar número de OP', '¿A qué OP le cambias el número?', ops);
+  if (viejo === null) return;
+  var resp = ui.prompt('✏️ Cambiar número de OP', '¿Qué número le pones a la OP ' + viejo + '? (puede ser uno que no exista, ej. 7)', ui.ButtonSet.OK_CANCEL);
+  if (resp.getSelectedButton() !== ui.Button.OK) return;
+  var texto = resp.getResponseText().trim();
+  var nuevo = parseInt(texto, 10);
+  if (isNaN(nuevo) || texto !== nuevo.toString() || nuevo < 1) {
+    ui.alert('Escribe un número entero mayor que 0.');
+    return;
+  }
+  if (nuevo === viejo) return;
+
+  var otra = buscarOrden(ordenes, nuevo);
+  if (otra) {
+    var cambiar = ui.alert('La OP ' + nuevo + ' ya existe. ¿Quieres intercambiarlas (la ' + viejo + ' pasa a ser la ' + nuevo + ' y la ' + nuevo + ' pasa a ser la ' + viejo + ')?', ui.ButtonSet.YES_NO);
+    if (cambiar !== ui.Button.YES) return;
+  }
+
+  var extrasViejo = leerExtrasDeHoja(ss, viejo);
+  var extrasNuevo = otra ? leerExtrasDeHoja(ss, nuevo) : null;
+  ordenes.forEach(function (o) {
+    if (o.op === viejo) escribirColumna(sheet, o.fila, COL_OP, o.n, nuevo);
+    else if (otra && o.op === nuevo) escribirColumna(sheet, o.fila, COL_OP, o.n, viejo);
+  });
+  escribirExtrasEnHoja(ss, nuevo, extrasViejo);
+  escribirExtrasEnHoja(ss, viejo, extrasNuevo);
+
+  var aviso = otra ? ('Se intercambiaron la OP ' + viejo + ' y la OP ' + nuevo + '.')
+                   : ('La OP ' + viejo + ' ahora es la OP ' + nuevo + '. Si quieres que las siguientes sigan desde ahí (' + nuevo + ', ' + (nuevo + 1) + ', ' + (nuevo + 2) + '…), dale a "🔄 Organizar".');
+  if (nuevo > HOJAS_DE_ORDEN) aviso += '\n\nOjo: la OP ' + nuevo + ' no tiene hoja de impresión (solo hay de la 1 a la ' + HOJAS_DE_ORDEN + ').';
+  ui.alert(aviso);
 }
 
 // Números de OP del Maestro, de menor a mayor.
