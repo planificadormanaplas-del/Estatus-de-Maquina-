@@ -62,12 +62,19 @@ function onOpen() {
     .addItem('🔀 Mover OP a otra posición', 'moverOP')
     .addItem('🔁 Intercambiar dos OP', 'intercambiarOP')
     .addItem('🧩 Reparar listas desplegables', 'repararListas')
+    .addItem('👁️ Mostrar solo las hojas con orden', 'mostrarHojasConOrden')
     .addSeparator()
     .addItem('📁 Guardar copia de hoy en Drive', 'guardarCopiaEnDrive')
     .addSeparator()
     .addItem('🧹 Vaciar el Maestro (borra TODAS las órdenes)', 'vaciarMaestro')
     .addItem('🗑️ Borrar TODO el Historial', 'borrarHistorial')
     .addToUi();
+
+  // Al abrir el archivo, se muestran solo las hojas 01-14 que tienen orden.
+  try {
+    var maestro = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_MAESTRO);
+    if (maestro) actualizarHojasVisibles(maestro);
+  } catch (err) {}
 }
 
 // ---- Ajusta esto si tu Maestro cambia de estructura ----
@@ -1638,4 +1645,14 @@ function actualizarHojasVisibles(maestro) {
       // Si Google no deja ocultar una hoja (ej. es la única visible), se deja como está.
     }
   }
+}
+
+function mostrarHojasConOrden() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var maestro = ss.getSheetByName(HOJA_MAESTRO);
+  if (!maestro) { SpreadsheetApp.getUi().alert('No encontré la hoja "' + HOJA_MAESTRO + '".'); return; }
+  actualizarHojasVisibles(maestro);
+  var ops = leerOrdenes(maestro).map(function (o) { return o.op; })
+    .filter(function (op) { return op >= 1 && op <= HOJAS_DE_ORDEN; });
+  ss.toast(ops.length ? 'Hojas visibles: ' + ops.join(', ') : 'No hay órdenes del 1 al ' + HOJAS_DE_ORDEN + '.', '👁️ Listo', 5);
 }
