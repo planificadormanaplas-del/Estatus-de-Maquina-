@@ -190,6 +190,7 @@ function eliminarFilas(sheet, fila, n) {
   asegurarReserva(sheet, 0);
   limpiarFormatoReserva(sheet);
   asegurarEstructuraMaestro(sheet);
+  actualizarHojasVisibles(sheet);
 }
 
 // Escribe una columna con el mismo valor en n filas.
@@ -715,6 +716,7 @@ function llenarFilasDeOrden(sheet, fila, n, op, maquina, sku, componente, import
   if (sku) aplicarValidacionComponente(rangoComp, opcionesDeComponente(sku.toString()));
   if (componente) escribirColumna(sheet, fila, COL_COMPONENTE, n, componente);
   if (importante) escribirColumna(sheet, fila, COL_IMPORTANTE, n, importante);
+  actualizarHojasVisibles(sheet);
 }
 
 // Hace todas las preguntas de una orden y la escribe. Devuelve {op, fila,
@@ -1005,6 +1007,7 @@ function compactarOrdenes(ss, sheet, ordenDeseado, inicio) {
     escribirExtrasEnHoja(ss, nuevo, origen ? extras[origen.op] : null);
   }
 
+  actualizarHojasVisibles(sheet);
   return movimientos;
 }
 
@@ -1321,6 +1324,7 @@ function onEdit(e) {
   // Al pegar (Ctrl+V) Google borra la lista desplegable de esas celdas:
   // si a alguna celda editada le falta su lista, se vuelven a poner.
   if (faltaAlgunaLista(rango)) restaurarListasEnFilas(sheet, filaIni, filaFin);
+  if (colIni <= COL_OP && COL_OP <= colFin) actualizarHojasVisibles(sheet);
 
   var tocaSku = colIni <= COL_SKU && COL_SKU <= colFin;
   var tocaComp = colIni <= COL_COMPONENTE && COL_COMPONENTE <= colFin;
@@ -1473,6 +1477,7 @@ function cambiarNumeroOP() {
   });
   escribirExtrasEnHoja(ss, nuevo, extrasViejo);
   escribirExtrasEnHoja(ss, viejo, extrasNuevo);
+  actualizarHojasVisibles(sheet);
 
   var aviso = otra ? ('Se intercambiaron la OP ' + viejo + ' y la OP ' + nuevo + '.')
                    : ('La OP ' + viejo + ' ahora es la OP ' + nuevo + '. Si quieres que las siguientes sigan desde ahí (' + nuevo + ', ' + (nuevo + 1) + ', ' + (nuevo + 2) + '…), dale a "🔄 Organizar".');
@@ -1608,5 +1613,29 @@ function fijarFechaEnCopia(idCopia, fecha) {
     return true;
   } catch (err) {
     return false;
+  }
+}
+
+
+// ---------- Hojas 01-14 visibles solo si tienen orden ----------
+
+// Muestra las hojas 01-14 cuya OP existe en el Maestro y oculta las demás.
+function actualizarHojasVisibles(maestro) {
+  var ss = maestro.getParent();
+  var conOrden = {};
+  leerOrdenes(maestro).forEach(function (o) { conOrden[o.op] = true; });
+  var activa = ss.getActiveSheet().getName();
+  for (var n = 1; n <= HOJAS_DE_ORDEN; n++) {
+    var hoja = hojaDeOrden(ss, n);
+    if (!hoja) continue;
+    try {
+      if (conOrden[n]) {
+        if (hoja.isSheetHidden()) hoja.showSheet();
+      } else if (!hoja.isSheetHidden() && hoja.getName() !== activa) {
+        hoja.hideSheet();
+      }
+    } catch (err) {
+      // Si Google no deja ocultar una hoja (ej. es la única visible), se deja como está.
+    }
   }
 }
