@@ -1080,11 +1080,11 @@ function guardarCopiaEnDrive() {
 
   var respDia = ui.prompt(
     'Guardar copia en Drive',
-    '¿De qué día es esta orden? Escribe el número del día (hoy sería ' + hoy.getDate() + '):',
+    '¿De qué día es esta orden? Escribe el número del día, o déjalo en blanco para hoy (' + hoy.getDate() + '):',
     ui.ButtonSet.OK_CANCEL
   );
   if (respDia.getSelectedButton() !== ui.Button.OK) return;
-  var diaTexto = respDia.getResponseText().trim();
+  var diaTexto = respDia.getResponseText().trim() || hoy.getDate().toString();
   var dia = parseInt(diaTexto, 10);
   if (isNaN(dia) || diaTexto !== dia.toString() || dia < 1 || dia > 31) {
     ui.alert('Escribe solo el número del día (ej: 19).');
@@ -1093,11 +1093,11 @@ function guardarCopiaEnDrive() {
 
   var respMes = ui.prompt(
     'Guardar copia en Drive',
-    '¿De qué mes es esta orden? Escribe el número del mes, del 1 al 12 (este mes sería ' + mesActual + '):',
+    '¿De qué mes es esta orden? Escribe el número del mes (1 al 12), o déjalo en blanco para este mes (' + mesActual + '):',
     ui.ButtonSet.OK_CANCEL
   );
   if (respMes.getSelectedButton() !== ui.Button.OK) return;
-  var mesTexto = respMes.getResponseText().trim();
+  var mesTexto = respMes.getResponseText().trim() || mesActual.toString();
   var mesNumero = parseInt(mesTexto, 10);
   if (isNaN(mesNumero) || mesTexto !== mesNumero.toString() || mesNumero < 1 || mesNumero > 12) {
     ui.alert('Escribe un número de mes válido, del 1 al 12.');
@@ -1127,11 +1127,18 @@ function guardarCopiaEnDrive() {
     donde = 'en la misma carpeta que este archivo (no pude usar la carpeta de Seguimiento: ' + err.message + ')';
   }
 
+  // En el archivo de trabajo la fecha es =HOY() y cambia sola cada día.
+  // En la copia se deja FIJA con la fecha de la orden, para que al abrirla
+  // otro día siga mostrando su fecha.
+  var fijada = fijarFechaEnCopia(copia.getId(), new Date(anio, mesNumero - 1, dia));
+
   ui.alert(
     '✅ Copia guardada en Drive',
     'Se creó la copia con el nombre:\n\n"' + nombre + '"\n\n' +
     'Quedó guardada ' + donde + '. ' +
     'La puedes abrir, compartir o descargar como Excel cuando quieras.\n\n' +
+    (fijada ? 'La fecha de la copia quedó fija: ' + dia + '/' + mesNumero + '/' + anio + '.\n\n'
+            : '⚠️ No pude dejar fija la fecha en la copia; revísala.\n\n') +
     'Enlace: ' + copia.getUrl(),
     ui.ButtonSet.OK
   );
@@ -1579,4 +1586,27 @@ function asegurarListaComponentes(maestro) {
     lista.getRange(FILA_INICIO, 1, filas, LISTA_COMP_OPCIONES + 1).setNumberFormat('@');
   }
   return lista;
+}
+
+
+// Pone la fecha fija (valor, no fórmula) en la celda FECHA (H1) de las hojas
+// de orden de la copia. Las hojas que tienen ='01'!H1 la toman de la 01.
+function fijarFechaEnCopia(idCopia, fecha) {
+  try {
+    var copiaSs = SpreadsheetApp.openById(idCopia);
+    var hoja01 = copiaSs.getSheetByName('01');
+    if (!hoja01) return false;
+    hoja01.getRange('H1').setValue(fecha);
+    for (var n = 2; n <= HOJAS_DE_ORDEN; n++) {
+      var hoja = copiaSs.getSheetByName((n < 10 ? '0' : '') + n);
+      if (!hoja) continue;
+      var celda = hoja.getRange('H1');
+      var f = celda.getFormula().toUpperCase();
+      if (f.indexOf('TODAY') !== -1 || f.indexOf('HOY') !== -1 || f === '') celda.setValue(fecha);
+    }
+    SpreadsheetApp.flush();
+    return true;
+  } catch (err) {
+    return false;
+  }
 }
