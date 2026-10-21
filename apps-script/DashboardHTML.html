@@ -56,6 +56,8 @@
     font-weight: 800; font-stretch: 75%; font-size: 26px; letter-spacing: -.01em;
     color: var(--accent);
   }
+  .navlink { padding: 7px 12px; border-radius: 8px; color: var(--ink-2); text-decoration: none; font-weight: 600; font-size: 14px; white-space: nowrap; transition: background-color .15s ease-out, color .15s ease-out; }
+  .navlink:hover { background: var(--surface); color: var(--accent); }
   .brand span { color: var(--ink-2); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .top .meta { margin-left: auto; display: flex; align-items: center; gap: 16px; color: var(--ink-3); font-size: 13.5px; white-space: nowrap; }
   .btn {
@@ -232,6 +234,7 @@
 <div class="wrap">
   <header class="top">
     <div class="brand"><b>MANAPLAS</b><span>Seguimiento de producción</span></div>
+    <a class="navlink" id="navRecetas" href="#">Recetas y materiales</a>
     <div class="meta">
       <span id="stamp"></span>
       <a class="btn" id="refresh" href="#">
@@ -328,6 +331,7 @@
   // ---------- Encabezado ----------
   $('stamp').textContent = 'Actualizado ' + (DATA.ahora || '');
   $('refresh').href = DATA.url || '#';
+  $('navRecetas').href = DATA.url ? DATA.url + '?page=recetas' : '#';
   if (!DATA.url) $('refresh').addEventListener('click', function (e) { e.preventDefault(); location.reload(); });
 
   // ---------- Libro de cifras ----------
