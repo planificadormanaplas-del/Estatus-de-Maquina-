@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel Manaplas</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0B1F33; --navy2:#13314F; --cyan:#00A6E0; --orange:#FF7A1A; --green:#1DB37A; --purple:#7A5AF8; --pink:#F2436B; --gold:#F5B700;
+  --bg:#EEF2F7; --card:#FFFFFF; --ink:#0B1F33; --muted:#5C6B7A; --line:#E1E7EF; --soft:#F6F8FB;
+  --rojo:#E5383B; --rojo-s:#FDE8E9; --naranja:#FF7A1A; --naranja-s:#FFF0E5; --amarillo:#E6A700; --amarillo-s:#FFF7DB; --verde:#1DB37A; --verde-s:#E3F7EE; --gris:#8A99A8; --gris-s:#EEF1F4;
+  --shadow:0 1px 2px rgba(11,31,51,.06),0 6px 18px rgba(11,31,51,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0A1522; --card:#11233A; --ink:#E8EFF7; --muted:#9DB0C3; --line:#1F3550; --soft:#0E1D30;
+    --rojo-s:#3A1418; --naranja-s:#3A2414; --amarillo-s:#382D0C; --verde-s:#0F3226; --gris-s:#1A2B40;
+    --shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Montserrat,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.top{background:var(--navy);color:#fff}
+.top-in{max-width:1240px;margin:0 auto;padding:22px 16px 0}
+.marca{color:var(--orange);font-weight:800;font-size:12px;letter-spacing:.14em}
+.titulo{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-top:4px}
+h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.01em}
+.periodo{color:#9FC3E0;font-size:13px;margin-top:4px}
+.estado{padding:10px 16px;border-radius:12px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px}
+.estado.bad{background:var(--rojo)} .estado.ok{background:var(--green)} .estado.warn{background:var(--orange)}
+.franja{display:flex;height:6px;margin-top:18px}
+.franja i{flex:1}
+nav{display:flex;gap:4px;overflow-x:auto;padding:14px 0 0;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+.tab{border:0;background:transparent;color:#B8CCE0;font:inherit;font-weight:700;font-size:13px;padding:11px 16px;border-radius:10px 10px 0 0;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:7px}
+.tab:hover{color:#fff;background:rgba(255,255,255,.06)}
+.tab.on{background:var(--bg);color:var(--ink)}
+.badge{background:var(--rojo);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px;font-weight:800}
+.badge.w{background:var(--orange)}
+main{max-width:1240px;margin:0 auto;padding:20px 16px 48px}
+.panel{display:none}
+.panel.on{display:block}
+.grid{display:grid;gap:14px}
+.k6{grid-template-columns:repeat(6,minmax(0,1fr))}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);min-width:0}
+.card h2{margin:0 0 2px;font-size:15px;font-weight:800}
+.hint{color:var(--muted);font-size:12px;margin-bottom:12px}
+.mb{margin-bottom:14px}
+.kpi{border-radius:14px;padding:14px 16px;color:#fff;min-width:0}
+.kpi .l{font-size:11px;font-weight:700;letter-spacing:.06em;opacity:.9}
+.kpi .v{font-size:28px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.kpi .u{font-size:13px;font-weight:600;margin-left:4px;opacity:.85}
+.kpi .s{font-size:11px;opacity:.85}
+.semres{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.semres div{border-radius:12px;padding:12px;text-align:center}
+.semres b{display:block;font-size:26px;font-weight:800}
+.semres span{font-size:11px;font-weight:700}
+.n-rojo{background:var(--rojo-s);color:var(--rojo)} .n-naranja{background:var(--naranja-s);color:var(--naranja)}
+.n-amarillo{background:var(--amarillo-s);color:var(--amarillo)} .n-verde{background:var(--verde-s);color:var(--verde)} .n-gris{background:var(--gris-s);color:var(--gris)}
+.sems{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.sem{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;gap:14px;box-shadow:var(--shadow);border-left-width:6px;min-width:0}
+.sem.rojo{border-left-color:var(--rojo)} .sem.naranja{border-left-color:var(--naranja)} .sem.amarillo{border-left-color:var(--amarillo)} .sem.verde{border-left-color:var(--verde)} .sem.gris{border-left-color:var(--gris)}
+.luz{background:#14202E;border-radius:12px;padding:6px 5px;display:flex;flex-direction:column;gap:5px;align-self:flex-start}
+.luz i{width:16px;height:16px;border-radius:50%;background:#2E3B4A;display:block}
+.luz i.r.on{background:#FF3B3B;box-shadow:0 0 10px #FF3B3B}
+.luz i.a.on{background:#FFB020;box-shadow:0 0 10px #FFB020}
+.luz i.v.on{background:#22D17F;box-shadow:0 0 10px #22D17F}
+.sem .info{min-width:0;flex:1}
+.sem .nom{font-weight:800;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sem .desc{color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sem .dias{font-size:26px;font-weight:800;line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums}
+.sem .dias small{font-size:12px;font-weight:700}
+.sem.rojo .dias{color:var(--rojo)} .sem.naranja .dias{color:var(--naranja)} .sem.amarillo .dias{color:var(--amarillo)} .sem.verde .dias{color:var(--verde)} .sem.gris .dias{color:var(--gris)}
+.sem .meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.sem .meta b{color:var(--ink)}
+.barra{height:6px;border-radius:4px;background:var(--gris-s);overflow:hidden;margin-top:8px}
+.barra i{display:block;height:100%;border-radius:4px}
+.etq{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;letter-spacing:.04em}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.2);vertical-align:-1px;margin-right:6px}
+.filtros{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.filtros input,.filtros select{font:inherit;font-size:13px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);min-width:0}
+.filtros input{flex:1 1 220px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:12px;font-weight:700;padding:7px 12px;border-radius:999px;cursor:pointer}
+.chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;color:var(--muted);font-weight:700;font-size:11px;padding:8px 10px;border-bottom:2px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--card)}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr:hover td{background:var(--soft)}
+.mark{color:var(--rojo);font-weight:800}
+.bars{display:flex;flex-direction:column;gap:9px}
+.br{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center}
+.br .t{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.br .v{font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
+.br .tr{grid-column:1 / -1;height:9px;border-radius:5px;background:var(--gris-s);overflow:hidden}
+.br .tr i{display:block;height:100%;border-radius:5px}
+.chart svg{display:block;width:100%;height:auto}
+.chart text{fill:var(--muted);font-size:11px;font-family:Montserrat,Arial,sans-serif}
+.chart .vl{fill:var(--ink);font-weight:700}
+.chart line{stroke:var(--line)}
+.alertas{display:flex;flex-direction:column;gap:8px}
+.al{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px}
+.al .ic{font-size:18px;line-height:1.2}
+.al b{display:block;font-size:13px}
+.al span{font-size:12px;color:var(--muted)}
+.al.rojo{background:var(--rojo-s)} .al.naranja{background:var(--naranja-s)} .al.amarillo{background:var(--amarillo-s)} .al.info{background:var(--gris-s)} .al.ok{background:var(--verde-s)}
+.al .der{margin-left:auto;font-weight:800;white-space:nowrap;font-size:13px}
+.al.rojo .der{color:var(--rojo)} .al.naranja .der{color:var(--naranja)} .al.amarillo .der{color:var(--amarillo)}
+.pedir{display:inline-block;margin-top:6px;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px}
+.pedir.ya{background:var(--rojo);color:#fff}.pedir.pronto{background:var(--naranja-s);color:var(--naranja)}.pedir.ok{background:var(--gris-s);color:var(--muted)}
+.lead{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:6px 10px}
+.filtros .lead input{flex:0 0 64px;width:64px;font:inherit;font-weight:800;padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);text-align:center}
+.vacio{color:var(--muted);padding:16px 4px;font-size:13px}
+.leyenda{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:var(--muted);margin-bottom:12px}
+.leyenda span{display:flex;align-items:center;gap:6px}
+.leyenda i{width:10px;height:10px;border-radius:50%;display:inline-block}
+footer{color:var(--muted);font-size:12px;margin-top:20px;line-height:1.6}
+@media (max-width:1000px){.k6{grid-template-columns:repeat(3,minmax(0,1fr))}.g3{grid-template-columns:1fr 1fr}}
+@media (max-width:720px){.g2,.g3{grid-template-columns:1fr}.semres{grid-template-columns:repeat(3,minmax(0,1fr))}.hide-m{display:none}h1{font-size:21px}}
+@media (max-width:460px){.k6{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi .v{font-size:22px}}
+</style>
+</head>
+<body>
+
+<div class="top"><div class="top-in">
+  <div class="marca">MANAPLAS</div>
+  <div class="titulo">
+    <div><h1>Panel de Producci&#243;n e Inventario</h1><div class="periodo" id="periodo"></div></div>
+    <div class="estado" id="estado"></div>
+  </div>
+  <nav id="tabs">
+    <button class="tab on" data-p="resumen" type="button">&#128202; Resumen</button>
+    <button class="tab" data-p="mp" type="button">&#129514; Materia prima <span class="badge" id="bmp"></span></button>
+    <button class="tab" data-p="col" type="button">&#127912; Colorantes <span class="badge" id="bcol"></span></button>
+    <button class="tab" data-p="prod" type="button">&#127981; Producci&#243;n</button>
+    <button class="tab" data-p="ord" type="button">&#128203; &#211;rdenes</button>
+    <button class="tab" data-p="inv" type="button">&#128230; Inventario</button>
+    <button class="tab" data-p="al" type="button">&#9888;&#65039; Alertas <span class="badge" id="bal"></span></button>
+  </nav>
+</div>
+<div class="franja"><i style="background:#00A6E0"></i><i style="background:#7A5AF8"></i><i style="background:#F2436B"></i><i style="background:#FF7A1A"></i><i style="background:#1DB37A"></i></div>
+</div>
+
+<main>
+  <section class="panel on" id="p-resumen">
+    <div class="grid k6 mb" id="kpis"></div>
+    <div class="grid g2 mb">
+      <div class="card"><h2>&#128678; Sem&#225;foro de materia prima</h2><div class="hint">Cu&#225;ntos materiales est&#225;n en cada nivel seg&#250;n los d&#237;as de inventario que les quedan.</div><div class="semres" id="semMP"></div></div>
+      <div class="card"><h2>&#128678; Sem&#225;foro de colorantes</h2><div class="hint">Igual, para los colores que se usaron en el periodo.</div><div class="semres" id="semCOL"></div></div>
+    </div>
+    <div class="grid g2 mb">
+      <div class="card"><h2>&#128293; Lo m&#225;s urgente</h2><div class="hint">Lo que se acaba primero y lo que hay que pedir ya, materia prima y colorantes juntos.</div><div class="alertas" id="urgentes"></div></div>
+      <div class="card"><h2>&#128200; Consumo por d&#237;a</h2><div class="hint">Kg de material de las &#243;rdenes, por fecha de emisi&#243;n.</div><div class="chart" id="chDia1"></div></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-mp">
+    <div class="card mb"><h2>&#129514; Materia prima: &#191;cu&#225;ntos d&#237;as me quedan?</h2>
+      <div class="hint">D&#237;as = existencia en inventario &#247; consumo promedio por d&#237;a. La fecha es cu&#225;ndo se acabar&#237;a si se sigue consumiendo igual.</div>
+      <div class="leyenda" id="ley1"></div><div class="filtros"><label class="lead">&#128666; El material tarda en llegar <input type="number" min="0" max="120" class="leadIn" value="7"> d&#237;as despu&#233;s de pedirlo</label></div>
+      <div class="filtros" id="fmp"></div>
+      <div class="sems" id="gridMP"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-col">
+    <div class="card mb"><h2>&#127912; Colorantes: &#191;cu&#225;ntos d&#237;as me quedan?</h2>
+      <div class="hint">Los colores con distinto c&#243;digo pero del mismo grupo se suman (por ejemplo, todos los NEGRO).</div>
+      <div class="leyenda" id="ley2"></div><div class="filtros"><label class="lead">&#128666; El colorante tarda en llegar <input type="number" min="0" max="120" class="leadIn" value="7"> d&#237;as despu&#233;s de pedirlo</label></div>
+      <div class="filtros" id="fcol"></div>
+      <div class="sems" id="gridCOL"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-prod">
+    <div class="card mb"><h2>&#128200; Consumo total por d&#237;a</h2><div class="hint">Kg de material + colorante de las &#243;rdenes emitidas cada d&#237;a.</div><div class="chart" id="chDia2"></div></div>
+    <div class="grid g2 mb">
+      <div class="card"><h2>&#127981; Productos m&#225;s fabricados</h2><div class="hint">Piezas en el periodo.</div><div class="bars" id="bProd"></div></div>
+      <div class="card"><h2>&#9881;&#65039; Kg por m&#225;quina</h2><div class="hint">Material usado por cada m&#225;quina.</div><div class="bars" id="bMaq"></div></div>
+    </div>
+    <div class="grid g2 mb">
+      <div class="card"><h2>&#129514; Materiales m&#225;s consumidos</h2><div class="hint">Kg por material (las mezclas ya repartidas seg&#250;n su receta).</div><div class="bars" id="bMat"></div></div>
+      <div class="card"><h2>&#127912; Colores m&#225;s consumidos</h2><div class="hint">Kg de colorante por color.</div><div class="bars" id="bCol"></div></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-ord">
+    <div class="card"><h2>&#128203; &#211;rdenes de producci&#243;n</h2><div class="hint" id="ordHint"></div>
+      <div class="filtros">
+        <input id="qOrd" type="search" placeholder="Buscar producto, color, material, SKU...">
+        <select id="sFecha"><option value="">Todas las fechas</option></select>
+        <select id="sMaq"><option value="">Todas las m&#225;quinas</option></select>
+        <button class="chip" id="cProb" type="button">Solo con problemas</button>
+      </div>
+      <div class="tw"><table id="tOrd"></table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-inv">
+    <div class="card"><h2>&#128230; Inventario completo</h2><div class="hint">Todo lo que hay en la pesta&#241;a Inv, incluso lo que no se us&#243; en el periodo.</div>
+      <div class="filtros">
+        <input id="qInv" type="search" placeholder="Buscar c&#243;digo o nombre...">
+        <button class="chip on" data-t="" type="button">Todo</button>
+        <button class="chip" data-t="Materia prima" type="button">Materia prima</button>
+        <button class="chip" data-t="Colorante" type="button">Colorantes</button>
+      </div>
+      <div class="tw"><table id="tInv"></table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-al">
+    <div class="card"><h2>&#9888;&#65039; Se&#241;ales de alerta</h2><div class="hint">Todo lo que necesita atenci&#243;n, de lo m&#225;s grave a lo menos grave.</div><div class="alertas" id="listaAl"></div></div>
+  </section>
+
+  <footer>Los datos se leen de la hoja al abrir esta p&#225;gina (<span id="ahora"></span>). El inventario y los d&#237;as salen de lo &#250;ltimo que calcul&#243; <b>&#128260; Actualizar todo</b>: si cargaste &#243;rdenes o inventario nuevo, dale primero a ese bot&#243;n en la hoja y luego recarga esta p&#225;gina.</footer>
+</main>
+
+<script>
+var DATA = {"ahora": "21/10/2026 10:15", "hoy": "2026-10-21", "ordenes": [["2026-09-29", 1, 103, "0063-0", "TOBO ELEGANCE DE 10 LTS.", "11H01A", "ASA", 1000, "NEGRO", "0682", 0.82, 41.0, 40.18, "11H01A", 40.18, "", 0.0, "", 0.0, "", 0.0], ["2026-09-29", 2, 101, "6054-0", "PLATO LLANO GRANDE", " 60C90ND", "PLATO GRANDE", 890, "GRIS PLATA", "9005", 0.5, 24.92, 24.42, " 60C90ND", 24.42, "", 0.0, "", 0.0, "", 0.0], ["2026-09-29", 3, 143, "7000-0", "EMBUDO PEQUEÑO", "11H01A", "EMBUDO PEQUEÑO", 4610, "GRIS", "9004", 3.5, 175.18, 171.68, "11H01A", 171.68, "", 0.0, "", 0.0, "", 0.0], ["2026-09-29", 3, 143, "7000-0", "EMBUDO PEQUEÑO", "11H01A", "EMBUDO PEQUEÑO", 4610, "NARANJA", "0108", 3.5, 175.18, 171.68, "11H01A", 171.68, "", 0.0, "", 0.0, "", 0.0], ["2026-09-29", 4, 132, "4071-0", "CIERRE Y FRESCO CUADRADO GRANDE.", " 30R40CD", "TAPA", 3000, "NATURAL", "0000", 6.36, 318.0, 311.64, " 30R40CD", 311.64, "", 0.0, "", 0.0, "", 0.0], ["2026-09-29", 5, 134, "8072-0", "CONSERVADOR ALIMENT CUADRADO", "20H10NA", "CONSERVADOR", 2650, "NATURAL", "0000", 4.51, 225.25, 220.75, "20H10NA", 220.75, "", 0.0, "", 0.0, "", 0.0], ["2026-09-29", 6, 139, "8030-0", "CONSERVADOR DE ALIMENTOS PEQUEÑO", "20H10NA", "CONSERVADOR", 4760, "NATURAL", "0000", 4.0, 199.92, 195.92, "20H10NA", 195.92, "", 0.0, "", 0.0, "", 0.0], ["2026-09-29", 7, 127, "8070-0", "CONSERVADOR DE ALIMENTO CUADRADO", "20H10NA", "CONSERVADOR", 4020, "NATURAL", "0000", 3.5, 174.87, 171.37, "20H10NA", 171.37, "", 0.0, "", 0.0, "", 0.0], ["2026-09-29", 8, 136, "8072-0", "CONSERVADOR ALIMENT CUADRADO", "2213 ( LINEAL DE BAJA STAR RESIN 50924)", "TAPA", 2650, "NATURAL", "0000", 2.97, 148.4, 145.43, "2213 ( LINEAL DE BAJA STAR RESIN 50924)", 145.43, "", 0.0, "", 0.0, "", 0.0], ["2026-09-29", 9, 217, "1012-0", "PIPOTE 85 LITROS", "50% 2908(POLYMER LL800W)+20%2811(PEAD OSTERLENE HD2000-GP)+30%MOLIDO", "PIPOTE 85 LITROS", 100, "VERDE OLIVA", "0628", 4.01, 267.0, 263.0, "2908", 131.5, "2811", 52.6, "MOLIDO", 78.9, "", 0.0], ["2026-09-29", 9, 217, "1012-0", "PIPOTE 85 LITROS", "50% 2908(POLYMER LL800W)+20%2811(PEAD OSTERLENE HD2000-GP)+30%MOLIDO", "PIPOTE 85 LITROS", 100, "Gris Polar", "(sin mapear)", 4.01, 267.0, 263.0, "2908", 131.5, "2811", 52.6, "MOLIDO", 78.9, "", 0.0], ["2026-10-01", 1, 103, "2030-0", "PONCHERA SIN ASAS 30 CM.", "40H92C", "PONCHERA SIN ASAS 30 CM.", 2140, "AZUL STANHOME", "0706", 6.51, 325.28, 318.77, "40H92C", 318.77, "", 0.0, "", 0.0, "", 0.0], ["2026-10-01", 1, 103, "2030-0", "PONCHERA SIN ASAS 30 CM.", "40H92C", "PONCHERA SIN ASAS 30 CM.", 2140, "ROJO CAOBA", "0858", 6.51, 325.28, 318.77, "40H92C", 318.77, "", 0.0, "", 0.0, "", 0.0], ["2026-10-01", 2, 125, "3003-0", "CAJA MULTIUSO 21,80 LTS", "20H10NA", "ASA", 3130, "NEGRO", "0682", 0.5, 25.04, 24.54, "20H10NA", 24.54, "", 0.0, "", 0.0, "", 0.0], ["2026-10-01", 2, 125, "3003-0", "CAJA MULTIUSO 21,80 LTS", "20H10NA", "ASA", 3130, "GRIS PLATA", "9005", 0.5, 25.04, 24.54, "20H10NA", 24.54, "", 0.0, "", 0.0, "", 0.0], ["2026-10-01", 3, 201, "6470-0", "PIPOTE 150 LTS", "50% 2908(POLYMER LL800W)+20%2811(PEAD OSTERLENE HD2000-GP)+30%MOLIDO", "PIPOTE 150 LTS", 250, "AZUL REY", "0835", 20.25, 1350.0, 1329.75, "2908", 664.88, "2811", 265.95, "MOLIDO", 398.93, "", 0.0], ["2026-10-01", 3, 201, "6470-0", "PIPOTE 150 LTS", "50% 2908(POLYMER LL800W)+20%2811(PEAD OSTERLENE HD2000-GP)+30%MOLIDO", "PIPOTE 150 LTS", 250, "GRIS POLAR", "(sin mapear)", 20.25, 1350.0, 1329.75, "2908", 664.88, "2811", 265.95, "MOLIDO", 398.93, "", 0.0], ["2026-10-01", 4, 143, "7000-0", "EMBUDO PEQUEÑO", "11H01A", "EMBUDO PEQUEÑO", 4610, "AZUL STANSHOME", "0706", 3.5, 175.18, 171.68, "11H01A", 171.68, "", 0.0, "", 0.0, "", 0.0], ["2026-10-01", 5, 102, "7095-0", "TAZA DE CAFÉ GRANDE", "20H10NA", "TAZA GRANDE", 3330, "BLANCO", "9003", 2.0, 99.9, 97.9, "20H10NA", 97.9, "", 0.0, "", 0.0, "", 0.0], ["2026-10-02", 1, 210, "0079-0", "GANCHO GUARDARROPA (PAQ.4)", "20H10NA", "GANCHO GUARDARROPA", 1500, "NEGRO", "0682", 1.77, 88.5, 86.73, "20H10NA", 86.73, "", 0.0, "", 0.0, "", 0.0], ["2026-10-02", 2, 206, "6421-0", "GANCHO DE ROPA ELEGANCE (PAQ. 3)", "20H10NA", "GANCHO", 2520, "NEGRO", "0682", 4.28, 214.2, 209.92, "20H10NA", 209.92, "", 0.0, "", 0.0, "", 0.0], ["2026-10-02", 3, 214, "3012-0", "CAJA MAXY CONTAINER MULTIUSO 76 LTS", "20H10NA", "CAJA MAXY CONTAINER MULTIUSO 76 LTS", 2000, "NATURAL", "0000", 77.8, 3890.0, 3812.2, "20H10NA", 3812.2, "", 0.0, "", 0.0, "", 0.0], ["2026-10-02", 4, 209, "6817-7", "ESCALEBANCO C/GRIS", "11H01A+05C06+REF+MOLIDO", "ESCALEBANCO ", 510, "GRIS", "9004", 6.01, 400.35, 394.34, "11H01A", 270.24, "05C06", 32.03, "REF", 32.03, "MOLIDO", 60.05], ["2026-10-02", 4, 209, "6817-1", "ESCALEBANCO C/AZUL", "11H01A+05C06+REF+MOLIDO", "ESCALEBANCO ", 2010, "AZUL OSCURO", "0629", 23.67, 1577.85, 1554.18, "11H01A", 1065.05, "05C06", 126.23, "REF", 126.23, "MOLIDO", 236.68], ["2026-10-02", 4, 209, "6817-3", "ESCALEBANCO C/VERDE", "11H01A+05C06+REF+MOLIDO", "ESCALEBANCO ", 1020, "VERDE OLIVA", "0628", 12.01, 800.7, 788.69, "11H01A", 540.47, "05C06", 64.06, "REF", 64.06, "MOLIDO", 120.11], ["2026-10-02", 4, 209, "6817-6", "ESCALEBANCO C/NEGRO", "11H01A+05C06+REF+MOLIDO", "ESCALEBANCO ", 1020, "NEGRO", "0682", 12.01, 800.7, 788.69, "11H01A", 540.47, "05C06", 64.06, "REF", 64.06, "MOLIDO", 120.11], ["2026-10-02", 4, 209, "6817-4", "ESCALEBANCO C/ROJO", "11H01A+05C06+REF+MOLIDO", "ESCALEBANCO ", 510, "ROJO", "9009", 6.01, 400.35, 394.34, "11H01A", 270.24, "05C06", 32.03, "REF", 32.03, "MOLIDO", 60.05], ["2026-10-02", 5, 129, "8030-0", "CONSERVADOR DE ALIMENTOS PEQUEÑO", "2213 ( LINEAL DE BAJA STAR RESIN 50924)", "TAPA", 2380, "VINOTINTO", "0626", 2.14, 107.1, 104.96, "2213 ( LINEAL DE BAJA STAR RESIN 50924)", 104.96, "", 0.0, "", 0.0, "", 0.0], ["2026-10-02", 5, 129, "8030-0", "CONSERVADOR DE ALIMENTOS PEQUEÑO", "2213 ( LINEAL DE BAJA STAR RESIN 50924)", "TAPA", 2380, " ARENA ", "0517", 2.14, 107.1, 104.96, "2213 ( LINEAL DE BAJA STAR RESIN 50924)", 104.96, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 1, 134, "3690-0", "JARRA GALAXY OVALADA 1,30 LTS", "20H10NA", "TAPA", 3030, "LILA  TRASLÚCIDO", "0819", 2.0, 99.99, 97.99, "20H10NA", 97.99, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 1, 134, "3690-0", "JARRA GALAXY OVALADA 1,30 LTS", "20H10NA", "TAPA", 3030, "AZUL TRASLÚCIDO", "9001", 2.0, 99.99, 97.99, "20H10NA", 97.99, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 2, 129, "8030-0", "CONSERVADOR DE ALIMENTOS PEQUEÑO", "2213 ( LINEAL DE BAJA STAR RESIN 50924)", "TAPA", 2380, "VERDE MENTA (PASTEL)", "0106", 2.14, 107.1, 104.96, "2213 ( LINEAL DE BAJA STAR RESIN 50924)", 104.96, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 3, 132, "8060-0", "CONSERVADOR DE ALIMENTOS REDONDO", "20H10NA", "CONSERVADOR", 9560, "NATURAL", "0000", 6.5, 325.04, 318.54, "20H10NA", 318.54, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 4, 125, "8060-0", "CONSERVADOR DE ALIMENTOS REDONDO", "PEBD EXELENE 20400 (2213)", "TAPA", 3187, "BEIGE", "9002", 1.27, 63.73, 62.46, "PEBD EXELENE 20400 (2213)", 62.46, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 4, 125, "8060-0", "CONSERVADOR DE ALIMENTOS REDONDO", "PEBD EXELENE 20400 (2213)", "TAPA", 3187, "VINOTINTO", "0626", 1.27, 63.73, 62.46, "PEBD EXELENE 20400 (2213)", 62.46, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 4, 125, "8060-0", "CONSERVADOR DE ALIMENTOS REDONDO", "PEBD EXELENE 20400 (2213)", "TAPA", 3187, " ARENA (SIN UV)", "0517", 1.27, 63.73, 62.46, "PEBD EXELENE 20400 (2213)", 62.46, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 5, 127, "3700-2", "JARRA MODERNA DE 2.2 LTS TRANSP.", "20H10NA", "TAPA", 11100, "LILA  TRASLÚCIDO", "0819", 9.99, 499.5, 489.51, "20H10NA", 489.51, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 5, 127, "3700-2", "JARRA MODERNA DE 2.2 LTS TRANSP.", "20H10NA", "TAPA", 11100, "AZUL TRASLÚCIDO", "9001", 9.99, 499.5, 489.51, "20H10NA", 489.51, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 6, 102, "7090-0", "TAZA DE CAFÉ PEQUEÑA", "20H10NA", "TAZA PEQUEÑA", 4920, "AZUL REY", "0835", 1.5, 75.03, 73.53, "20H10NA", 73.53, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 6, 102, "7090-0", "TAZA DE CAFÉ PEQUEÑA", "20H10NA", "TAZA PEQUEÑA", 4920, "ROJO", "9009", 1.5, 75.03, 73.53, "20H10NA", 73.53, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 6, 102, "7090-0", "TAZA DE CAFÉ PEQUEÑA", "20H10NA", "TAZA PEQUEÑA", 4920, "VERDE OLIVA", "0628", 1.5, 75.03, 73.53, "20H10NA", 73.53, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 6, 102, "7090-0", "TAZA DE CAFÉ PEQUEÑA", "20H10NA", "TAZA PEQUEÑA", 4920, "BLANCO", "9003", 1.5, 75.03, 73.53, "20H10NA", 73.53, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 7, 111, "2037-0", "PONCHERA SIN ASAS 37 CM.", "40H92C", "PONCHERA SIN ASAS 37 CM.", 1550, "AZUL STANHOME", "0706", 7.5, 375.1, 367.6, "40H92C", 367.6, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 7, 111, "2037-0", "PONCHERA SIN ASAS 37 CM.", "40H92C", "PONCHERA SIN ASAS 37 CM.", 1550, "ROJO CAOBA", "0858", 7.5, 375.1, 367.6, "40H92C", 367.6, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 8, 113, "2040-0", "PONCHERA SIN ASAS 40 CM.", "40H92C", "PONCHERA SIN ASAS 40 CM.", 1160, "AZUL STANHOME", "0706", 7.52, 375.84, 368.32, "40H92C", 368.32, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 8, 113, "2040-0", "PONCHERA SIN ASAS 40 CM.", "40H92C", "PONCHERA SIN ASAS 40 CM.", 1160, "ROJO CAOBA", "0858", 7.52, 375.84, 368.32, "40H92C", 368.32, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 9, 131, "6515", "MATERO ELEGANCE C PLATO  15CM", "20H10NA", "MATERO ELEGANCE 15 CM", 2470, "BLANCO", "9003", 4.0, 200.07, 196.07, "20H10NA", 196.07, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 10, 135, "6516", "Plato Matero 15cm", "20H10NA", "PLATO", 2470, "BLANCO", "9003", 1.46, 72.87, 71.41, "20H10NA", 71.41, "", 0.0, "", 0.0, "", 0.0], ["2026-10-05", 11, 139, "8030-0", "CONSERVADOR DE ALIMENTOS PEQUEÑO", "20H10NA", "CONSERVADOR", 2380, "NATURAL", "0000", 2.0, 99.96, 97.96, "20H10NA", 97.96, "", 0.0, "", 0.0, "", 0.0], ["2026-10-07", 1, 133, "0057-0", "JUEGO DE PLAYA GRANDE", "PEBD EXELENE 20400 (2213)", "ASA TOBO (JUEGO DE PLAYA)", 9380, "BLANCO", "9003", 1.5, 75.04, 73.54, "PEBD EXELENE 20400 (2213)", 73.54, "", 0.0, "", 0.0, "", 0.0], ["2026-10-07", 2, 215, "6829-9", "BUTACA CONFORT C/TACOS C/NEGRA", "11H01A+05C06+REF+MOLIDO", "BUTACA CONFORT C", 600, "NEGRO", "0682", 20.39, 1359.0, 1338.62, "11H01A", 917.33, "05C06", 108.72, "REF", 108.72, "MOLIDO", 203.85], ["2026-10-07", 2, 215, "6829-1", "BUTACA CONFORT C/TACOS C/AZUL", "11H01A+05C06+REF+MOLIDO", "BUTACA CONFORT C", 2500, "AZUL OSCURO (SILLAS)", "0629", 84.94, 5662.5, 5577.56, "11H01A", 3822.19, "05C06", 453.0, "REF", 453.0, "MOLIDO", 849.38], ["2026-10-07", 2, 215, "6829-0", "BUTACA CONFORT C/TACOS C/BLANCO", "11H01A+05C06+REF+MOLIDO", "BUTACA CONFORT C", 2500, "BLANCO (SILLAS)", "0625", 84.94, 5662.5, 5577.56, "11H01A", 3822.19, "05C06", 453.0, "REF", 453.0, "MOLIDO", 849.38], ["2026-10-07", 5, 206, "3032-0", "PAPELERA ELEGANCE GRANDE CON TAPA C/SURTIDO", "11H01A", "BASE GRANDE", 310, "BLANCO", "9003", 5.04, 252.03, 246.99, "11H01A", 246.99, "", 0.0, "", 0.0, "", 0.0], ["2026-10-07", 6, 121, "3032-0", "PAPELERA ELEGANCE GRANDE CON TAPA C/SURTIDO", "11H01A", "BALANCÍN", 310, "BLANCO", "9003", 0.85, 42.47, 41.62, "11H01A", 41.62, "", 0.0, "", 0.0, "", 0.0], ["2026-10-07", 7, 111, "3032-0", "PAPELERA ELEGANCE GRANDE CON TAPA C/SURTIDO", "11H01A", "TAPA", 310, "BLANCO", "9003", 1.27, 63.55, 62.28, "11H01A", 62.28, "", 0.0, "", 0.0, "", 0.0], ["2026-10-07", 8, 136, "8070-0", "CONSERVADOR DE ALIMENTO CUADRADO", "2213 ( LINEAL DE BAJA STAR RESIN 50924)", "TAPA", 1367, " ARENA (SIN UV)", "0517", 0.68, 34.18, 33.49, "2213 ( LINEAL DE BAJA STAR RESIN 50924)", 33.49, "", 0.0, "", 0.0, "", 0.0], ["2026-10-07", 8, 136, "8070-0", "CONSERVADOR DE ALIMENTO CUADRADO", "2213 ( LINEAL DE BAJA STAR RESIN 50924)", "TAPA", 1367, "VINOTINTO", "0626", 0.68, 34.18, 33.49, "2213 ( LINEAL DE BAJA STAR RESIN 50924)", 33.49, "", 0.0, "", 0.0, "", 0.0], ["2026-10-07", 8, 136, "8070-0", "CONSERVADOR DE ALIMENTO CUADRADO", "2213 ( LINEAL DE BAJA STAR RESIN 50924)", "TAPA", 1367, "VERDE MENTA (PASTEL)", "0106", 0.68, 34.18, 33.49, "2213 ( LINEAL DE BAJA STAR RESIN 50924)", 33.49, "", 0.0, "", 0.0, "", 0.0], ["2026-10-07", 9, 135, "4080-0", "CONSERVADOR REDONDO ELEGANCE", "20H10NA", "CONSERVADOR", 9308, "BLANCO", "9003", 4.47, 223.39, 218.92, "20H10NA", 218.92, "", 0.0, "", 0.0, "", 0.0], ["2026-10-07", 10, 133, "0057-0", "JUEGO DE PLAYA GRANDE", "11H01A+MOLIDO", "TOBO (JUEGO DE PLAYA)", 1010, "AMARILLO TAPA", "0869", 1.88, 125.24, 123.36, "11H01A", 104.86, "MOLIDO", 18.5, "", 0.0, "", 0.0], ["2026-10-07", 10, 133, "0057-0", "JUEGO DE PLAYA GRANDE", "11H01A+MOLIDO", "TOBO (JUEGO DE PLAYA)", 1010, "VERDE MANZANA", "0821", 1.88, 125.24, 123.36, "11H01A", 104.86, "MOLIDO", 18.5, "", 0.0, "", 0.0], ["2026-10-07", 11, 215, "6829", "BUTACA CONFORT", "11H01A+05C06+REF+MOLIDO", "BUTACA CONFORT C", 400, "NEGRO", "0682", 13.59, 906.0, 892.41, "11H01A", 611.55, "05C06", 72.48, "REF", 72.48, "MOLIDO", 135.9], ["2026-10-07", 12, 206, "3032-4", "PAPELERA ELEGANCE GRANDE C/TAPA C/BLANCA", "11H01A", "BASE GRANDE", 310, "BLANCO", "9003", 5.04, 252.03, 246.99, "11H01A", 246.99, "", 0.0, "", 0.0, "", 0.0], ["2026-10-07", 13, 111, "3032-4", "PAPELERA ELEGANCE GRANDE C/TAPA C/BLANCA", "11H01A", "TAPA", 310, "BLANCO", "9003", 1.27, 63.55, 62.28, "11H01A", 62.28, "", 0.0, "", 0.0, "", 0.0], ["2026-10-07", 14, 121, "3032-4", "PAPELERA ELEGANCE GRANDE C/TAPA C/BLANCA", "11H01A", "BALANCÍN", 310, "BLANCO", "9003", 0.85, 42.47, 41.62, "11H01A", 41.62, "", 0.0, "", 0.0, "", 0.0], ["2026-10-08", 1, 211, "3012-0", "CAJA MAXY CONTAINER MULTIUSO 76 LTS", "50% 40H92C+50% 20H10NA", "TAPA", 2000, "AZUL TRASLÚCIDO", "9001", 22.0, 1100.0, 1078.0, "40H92C", 539.0, "20H10NA", 539.0, "", 0.0, "", 0.0], ["2026-10-08", 3, 202, "6825", "SILLA ELEGANCE", "11H01A+05C06+REF+MOLIDO", "SILLA ELEGANCE", 1000, "NEGRO", "0682", 30.6, 2040.0, 2009.4, "11H01A", 1377.0, "05C06", 163.2, "REF", 163.2, "MOLIDO", 306.0], ["2026-10-08", 4, 212, "6815-0", "ESCALEBANCO 2 PELDAÑOS C/TACOS C/BLANCO", "11H01A+05C06+REF+MOLIDO", "ESCALEBANCO 2 PELDAÑOS", 1000, "NEGRO", "0682", 25.05, 1670.0, 1644.95, "11H01A", 1127.25, "05C06", 133.6, "REF", 133.6, "MOLIDO", 250.5], ["2026-10-08", 5, 206, "3032-0", "PAPELERA ELEGANCE GRANDE CON TAPA C/SURTIDO", "11H01A", "BASE GRANDE", 310, "BEIGE", "9002", 5.04, 252.03, 246.99, "11H01A", 246.99, "", 0.0, "", 0.0, "", 0.0], ["2026-10-08", 5, 206, "3032-0", "PAPELERA ELEGANCE GRANDE CON TAPA C/SURTIDO", "11H01A", "BASE GRANDE", 310, "AZUL COBALTO", "0834", 5.04, 252.03, 246.99, "11H01A", 246.99, "", 0.0, "", 0.0, "", 0.0], ["2026-10-08", 6, 111, "3032-0", "PAPELERA ELEGANCE GRANDE CON TAPA C/SURTIDO", "11H01A", "TAPA", 310, "BEIGE", "9002", 1.27, 63.55, 62.28, "11H01A", 62.28, "", 0.0, "", 0.0, "", 0.0], ["2026-10-08", 6, 111, "3032-0", "PAPELERA ELEGANCE GRANDE CON TAPA C/SURTIDO", "11H01A", "TAPA", 310, "AZUL COBALTO", "0834", 1.27, 63.55, 62.28, "11H01A", 62.28, "", 0.0, "", 0.0, "", 0.0], ["2026-10-08", 7, 121, "3032-0", "PAPELERA ELEGANCE GRANDE CON TAPA C/SURTIDO", "11H01A", "BALANCÍN", 310, "BEIGE", "9002", 0.85, 42.47, 41.62, "11H01A", 41.62, "", 0.0, "", 0.0, "", 0.0], ["2026-10-08", 7, 121, "3032-0", "PAPELERA ELEGANCE GRANDE CON TAPA C/SURTIDO", "11H01A", "BALANCÍN", 310, "AZUL COBALTO", "0834", 0.85, 42.47, 41.62, "11H01A", 41.62, "", 0.0, "", 0.0, "", 0.0], ["2026-10-08", 8, 210, "7217-0", "PIPOTE ELEGANCE 41 LITROS", " 60C90ND", "PIPOTE ELEGANCE/BASURA 41 LITROS", 360, "Verde OLIVA", "0628", 7.01, 350.64, 343.63, " 60C90ND", 343.63, "", 0.0, "", 0.0, "", 0.0], ["2026-10-08", 8, 210, "7217-0", "PIPOTE ELEGANCE 41 LITROS", " 60C90ND", "PIPOTE ELEGANCE/BASURA 41 LITROS", 360, "AZUL REY", "0835", 7.01, 350.64, 343.63, " 60C90ND", 343.63, "", 0.0, "", 0.0, "", 0.0], ["2026-10-08", 9, 139, "8071-0", "CONSERVADOR ALIMENT. CUADRADO", "20H10NA", "CONSERVADOR", 5150, "NATURAL", "0000", 7.0, 350.2, 343.2, "20H10NA", 343.2, "", 0.0, "", 0.0, "", 0.0], ["2026-10-08", 10, 116, "3690-0", "JARRA GALAXY OVALADA 1,30 LTS", "20H10NA", "JARRA ", 6060, "NATURAL", "0000", 10.18, 509.04, 498.86, "20H10NA", 498.86, "", 0.0, "", 0.0, "", 0.0], ["2026-10-08", 11, 117, "0070-0", "TAPA PARA MICROONDAS", "20H10NA", "TAPA PARA MICROONDAS", 2560, "NATURAL", "0000", 5.38, 268.8, 263.42, "20H10NA", 263.42, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 1, 113, "6530-2", "MATERO ELEGANCE C/PLATO VERDE DE 30CM", "11H01A", "MATERO ELEGANCE DE 30CM", 2500, "VERDE OLIVA (CARGADO 0628)", "0628", 19.45, 972.5, 953.05, "11H01A", 953.05, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 1, 113, "6530-4", "MATERO ELEGANCE C PLATO/ TERRACOTA 30CM", "11H01A", "MATERO ELEGANCE DE 30CM", 3500, "TERRACOTA (MB 0493)", "0493", 27.23, 1361.5, 1334.27, "11H01A", 1334.27, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 1, 113, "6530-6", "MATERO ELEGANCE C PLATO/ ARENA 30CM", "11H01A", "MATERO ELEGANCE DE 30CM", 2500, "ARENA (SIN UV) (MB 0517)", "0517", 19.45, 972.5, 953.05, "11H01A", 953.05, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 1, 113, "6530-7", "MATERO ELEGANCE C PLATO/ MARRON 30CM", "11H01A", "MATERO ELEGANCE DE 30CM", 3000, "MARRÓN (MB 0111)", "9006", 23.34, 1167.0, 1143.66, "11H01A", 1143.66, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 1, 113, "6530-8", "MATERO ELEGANCE C PLATO/ NEGRO 30CM", "11H01A", "MATERO ELEGANCE DE 30CM", 2500, "NEGRO (MB 0682)", "0682", 19.45, 972.5, 953.05, "11H01A", 953.05, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 2, 123, "6531-2", "Plato Matero Color Verde 30cm", "11H01A", "PLATO", 2500, "VERDE OLIVA (CARGADO 0628)", "0628", 3.93, 196.25, 192.33, "11H01A", 192.33, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 2, 123, "6531-4", "Plato Matero Color Terracota 30cm", "11H01A", "PLATO", 3500, "TERRACOTA (MB 0493)", "0493", 5.5, 274.75, 269.26, "11H01A", 269.26, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 2, 123, "6531-6", "Plato Matero Color Arena 30cm", "11H01A", "PLATO", 2500, "ARENA (SIN UV) (MB 0517)", "0517", 3.93, 196.25, 192.33, "11H01A", 192.33, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 2, 123, "6531-7", "Plato Matero Color Marrón 30cm", "11H01A", "PLATO", 3000, "MARRÓN (MB 0111)", "9006", 4.71, 235.5, 230.79, "11H01A", 230.79, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 2, 123, "6531-8", "Plato Matero Color Negro 30cm", "11H01A", "PLATO", 2500, "NEGRO (MB 0682)", "0682", 3.93, 196.25, 192.33, "11H01A", 192.33, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 3, 129, "6640-0", "JABONERA MODERNA", "20H10NA", "JABONERA MODERNA", 10610, "TURQUESA (MB 0689)", "0689", 7.0, 350.13, 343.13, "20H10NA", 343.13, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 3, 129, "6640-0", "JABONERA MODERNA", "20H10NA", "JABONERA MODERNA", 11360, "ROJO CAOBA (MB 0858)", "0858", 7.5, 374.88, 367.38, "20H10NA", 367.38, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 3, 129, "6640-0", "JABONERA MODERNA", "20H10NA", "JABONERA MODERNA", 11360, "NARANJA ATÓXICO (MB 0119)", "0119", 7.5, 374.88, 367.38, "20H10NA", 367.38, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 3, 129, "6640-0", "JABONERA MODERNA", "20H10NA", "JABONERA MODERNA", 11360, "VERDE PASTEL (SIN CÓDIGO)", "0106", 7.5, 374.88, 367.38, "20H10NA", 367.38, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 4, 133, "4084-0", "CONSERVADOR REDONDO ELEGANCE GIGANTE", "20H10NA", "CONSERVADOR", 2660, "NATURAL (70%) (MB 0867)", "0867", 6.49, 324.52, 318.03, "20H10NA", 318.03, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 5, 134, "8039-0", "CONSERVADOR ALIM. MINILUNCH 1.26 LTS", "20H10NA", "CONSERVADOR", 2650, "NATURAL (70%) (MB 0867)", "0867", 3.5, 174.9, 171.4, "20H10NA", 171.4, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 6, 136, "0057-0", "JUEGO DE PLAYA GRANDE", "11H01A", "CASTILLO (JUEGO DE PLAYA)", 7580, "AMARILLO CLARO (MB 0102)", "0102", 5.0, 250.14, 245.14, "11H01A", 245.14, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 7, 206, "0064", "APILABOX", "40H92C", "APILABOX C/", 360, "BLANCO (MB 0694)", "9003", 2.51, 125.28, 122.77, "40H92C", 122.77, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 7, 206, "0064", "APILABOX", "40H92C", "APILABOX C/", 360, "ARENA (SIN UV) (MB 0517)", "0517", 2.51, 125.28, 122.77, "40H92C", 122.77, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 7, 206, "0064", "APILABOX", "40H92C", "APILABOX C/", 360, "MARRÓN (MB 0111)", "9006", 2.51, 125.28, 122.77, "40H92C", 122.77, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 8, 218, "3794-0", "CESTA ROPA RED. C/TAPA GALAXY C/ SURTIDO", "50% 40H92C+50% 20H10NA", "CESTA DE ROPA RED MEDIANA", 420, "BEIGE (MB 0656)", "9002", 8.55, 427.56, 419.01, "40H92C", 209.5, "20H10NA", 209.5, "", 0.0, "", 0.0], ["2026-10-13", 8, 218, "3794-0", "CESTA ROPA RED. C/TAPA GALAXY C/ SURTIDO", "50% 40H92C+50% 20H10NA", "CESTA DE ROPA RED MEDIANA", 420, "BLANCO (MB 0840)", "9003", 8.55, 427.56, 419.01, "40H92C", 209.5, "20H10NA", 209.5, "", 0.0, "", 0.0], ["2026-10-13", 9, 101, "6057-0", "PLATO HONDO PEQUEÑO", "20H10NA", "PLATO HONDO", 18000, "BLANCO (MB 0840)", "9003", 8.28, 414.0, 405.72, "20H10NA", 405.72, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 9, 101, "6057-0", "PLATO HONDO PEQUEÑO", "20H10NA", "PLATO HONDO", 9780, "ROJO (CARGADO 0624)", "9009", 4.5, 224.94, 220.44, "20H10NA", 220.44, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 9, 101, "6057-0", "PLATO HONDO PEQUEÑO", "20H10NA", "PLATO HONDO", 9780, "VERDE (MB 0116)", "9011", 4.5, 224.94, 220.44, "20H10NA", 220.44, "", 0.0, "", 0.0, "", 0.0], ["2026-10-13", 9, 101, "6057-0", "PLATO HONDO PEQUEÑO", "20H10NA", "PLATO HONDO", 9780, "NEGRO GRADO ALIMENTICIO (MB 0630)", "0682", 4.5, 224.94, 220.44, "20H10NA", 220.44, "", 0.0, "", 0.0, "", 0.0], ["2026-10-14", 1, 132, "8028-0", "CONSERVADOR C/DIVISIONES MED.", "20H10NA", "CONSERVADOR ALIMENTOS", 4280, "NATURAL 70% (MB 0867)", "0867", 6.51, 325.28, 318.77, "20H10NA", 318.77, "", 0.0, "", 0.0, "", 0.0], ["2026-10-14", 2, 121, "8029-0", "CONSERVADOR C/DIVISIONES GDE.", "20H10NA", "CONSERVADOR", 1680, "NATURAL 70% (MB 0867)", "0867", 3.49, 174.72, 171.23, "20H10NA", 171.23, "", 0.0, "", 0.0, "", 0.0], ["2026-10-14", 3, 214, "0106-0", "PIPOTE 50 LITROS", "50% 40H92C+50% 60C90ND", "PIPOTE 50 LITROS", 750, "AZUL REY (MB 0835)", "0835", 19.5, 975.0, 955.5, "40H92C", 477.75, "60C90ND", 477.75, "", 0.0, "", 0.0], ["2026-10-14", 3, 214, "0106-0", "PIPOTE 50 LITROS", "50% 40H92C+50% 60C90ND", "PIPOTE 50 LITROS", 750, "GRIS POLAR (SIN CÓDIGO)", "(sin mapear)", 19.5, 975.0, 955.5, "40H92C", 477.75, "60C90ND", 477.75, "", 0.0, "", 0.0], ["2026-10-14", 4, 111, "3700-2", "JARRA MODERNA DE 2.2 LTS TRANSP.", "20H10NA", "JARRA MODERNA DE 2.2 LTS TRANSP.", 14285, "NATURAL 70% (MB 0867)", "0867", 40.28, 2014.19, 1973.9, "20H10NA", 1973.9, "", 0.0, "", 0.0, "", 0.0], ["2026-10-14", 5, 125, "4080-0", "CONSERVADOR REDONDO ELEGANCE", "2213 (EXELENE 20400)", "TAPA", 3103, "VINOTINTO (MB 0824)", "0824", 0.81, 40.34, 39.53, "2213 (EXELENE 20400)", 39.53, "", 0.0, "", 0.0, "", 0.0], ["2026-10-14", 5, 125, "4080-0", "CONSERVADOR REDONDO ELEGANCE", "2213 (EXELENE 20400)", "TAPA", 3103, "ARENA (SIN UV) (MB 0517)", "0517", 0.81, 40.34, 39.53, "2213 (EXELENE 20400)", 39.53, "", 0.0, "", 0.0, "", 0.0], ["2026-10-14", 5, 125, "4080-0", "CONSERVADOR REDONDO ELEGANCE", "2213 (EXELENE 20400)", "TAPA", 3103, "VERDE PASTEL (MB 0106)", "0106", 0.81, 40.34, 39.53, "2213 (EXELENE 20400)", 39.53, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 7, 103, "0059-0", "COLADOR DE PASTA", "40H92C", "COLADOR DE PASTA", 3330, "BLANCO (MB 0694)", "9003", 6.99, 349.65, 342.66, "40H92C", 342.66, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 7, 103, "0059-0", "COLADOR DE PASTA", "40H92C", "COLADOR DE PASTA", 3330, "AZUL COBALTO (MB 0834)", "0834", 6.99, 349.65, 342.66, "40H92C", 342.66, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 8, 302, "6336-0", "REGADERA ELEGANCE DE 6  LTS.", "6200B", "REGADERA ELEGANCE DE 6 LTS.", 1710, "VERDE OLIVA ATÓXICO (MB 0838)", "0838", 11.97, 598.5, 586.53, "6200B", 586.53, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 9, 135, "8028-0", "CONSERVADOR C/DIVISIONES MED.", "2213 (STAR RESIN 50924)", "TAPA", 1428, "VERDE PASTEL (MB 0106)", "0106", 2.0, 99.96, 97.96, "2213 (STAR RESIN 50924)", 97.96, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 9, 135, "8028-0", "CONSERVADOR C/DIVISIONES MED.", "2213 (STAR RESIN 50924)", "TAPA", 1428, "VINOTINTO (MB 0824)", "0824", 2.0, 99.96, 97.96, "2213 (STAR RESIN 50924)", 97.96, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 9, 135, "8028-0", "CONSERVADOR C/DIVISIONES MED.", "2213 (STAR RESIN 50924)", "TAPA", 1428, "ARENA (SIN UV) (MB 0517)", "0517", 2.0, 99.96, 97.96, "2213 (STAR RESIN 50924)", 97.96, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 1, 117, "3750-0", "TAZA DE LUJO", "11H01A", "TAZA DE LUJO", 4170, "BLANCO (MB 0694)", "9003", 2.5, 125.1, 122.6, "11H01A", 122.6, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 1, 117, "3750-0", "TAZA DE LUJO", "11H01A", "TAZA DE LUJO", 4170, "AZUL COBALTO (MB 0834)", "0834", 2.5, 125.1, 122.6, "11H01A", 122.6, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 1, 117, "3750-0", "TAZA DE LUJO", "11H01A", "TAZA DE LUJO", 4170, "BEIGE (MB 0826)", "9002", 2.5, 125.1, 122.6, "11H01A", 122.6, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 2, 216, "9006-4", "MESA CUADRADA FESTIVAL C/ARENA 80 CM.", "11H01A+05C06+REF+MOLIDO", "MESA CUADRADA", 300, "ARENA (CON UV) (MB 0516)", "0516", 16.2, 1080.0, 1063.8, "11H01A", 729.0, "05C06", 86.4, "REF", 86.4, "MOLIDO", 162.0], ["2026-10-16", 2, 216, "9006-0", "MESA CUADRADA FESTIVAL C/BLANCO 80 CM.", "11H01A+05C06+REF+MOLIDO", "MESA CUADRADA", 400, "BLANCO (CARGADO 0625)", "0625", 21.6, 1440.0, 1418.4, "11H01A", 972.0, "05C06", 115.2, "REF", 115.2, "MOLIDO", 216.0], ["2026-10-16", 2, 216, "9006-2", "MESA CUADRADA FESTIVAL C/AZUL 80 CM.", "11H01A+05C06+REF+MOLIDO", "MESA CUADRADA", 400, "AZUL OSCURO NUEVO (CARGADO 0629)", "0629", 21.6, 1440.0, 1418.4, "11H01A", 972.0, "05C06", 115.2, "REF", 115.2, "MOLIDO", 216.0], ["2026-10-16", 2, 216, "9006-3", "MESA CUADRADA FESTIVAL C/VERDE 80 CM.", "11H01A+05C06+REF+MOLIDO", "MESA CUADRADA", 350, "VERDE OLIVA (CARGADO 0628)", "0628", 18.9, 1260.0, 1241.1, "11H01A", 850.5, "05C06", 100.8, "REF", 100.8, "MOLIDO", 189.0], ["2026-10-16", 2, 216, "9006-8", "MESA CUADRADA FESTIVAL C/MARRÓN 80 CM.", "11H01A+05C06+REF+MOLIDO", "MESA CUADRADA", 250, "MARRÓN (CARGADO 0642)", "9006", 13.5, 900.0, 886.5, "11H01A", 607.5, "05C06", 72.0, "REF", 72.0, "MOLIDO", 135.0], ["2026-10-16", 3, 213, "9006-4", "MESA CUADRADA FESTIVAL C/ARENA 80 CM.", "11H01A+05C06+REF+MOLIDO", "PATAS", 1200, "ARENA (CON UV) (MB 0516)", "0516", 8.55, 570.0, 561.45, "11H01A", 384.75, "05C06", 45.6, "REF", 45.6, "MOLIDO", 85.5], ["2026-10-16", 3, 213, "9006-0", "MESA CUADRADA FESTIVAL C/BLANCO 80 CM.", "11H01A+05C06+REF+MOLIDO", "PATAS", 1600, "BLANCO (CARGADO 0625)", "0625", 11.4, 760.0, 748.6, "11H01A", 513.0, "05C06", 60.8, "REF", 60.8, "MOLIDO", 114.0], ["2026-10-16", 3, 213, "9006-2", "MESA CUADRADA FESTIVAL C/AZUL 80 CM.", "11H01A+05C06+REF+MOLIDO", "PATAS", 1600, "AZUL OSCURO NUEVO (CARGADO 0629)", "0629", 11.4, 760.0, 748.6, "11H01A", 513.0, "05C06", 60.8, "REF", 60.8, "MOLIDO", 114.0], ["2026-10-16", 3, 213, "9006-3", "MESA CUADRADA FESTIVAL C/VERDE 80 CM.", "11H01A+05C06+REF+MOLIDO", "PATAS", 1400, "VERDE OLIVA (CARGADO 0628)", "0628", 9.98, 665.0, 655.03, "11H01A", 448.88, "05C06", 53.2, "REF", 53.2, "MOLIDO", 99.75], ["2026-10-16", 3, 213, "9006-8", "MESA CUADRADA FESTIVAL C/MARRÓN 80 CM.", "11H01A+05C06+REF+MOLIDO", "PATAS", 1000, "MARRÓN (CARGADO 0642)", "9006", 7.13, 475.0, 467.88, "11H01A", 320.63, "05C06", 38.0, "REF", 38.0, "MOLIDO", 71.25], ["2026-10-16", 4, 143, "8039-0", "CONSERVADOR ALIM. MINILUNCH 1.26 LTS", "20H10NA", "VÁLVULA", 19230, "BLANCO (MB 0694)", "9003", 0.5, 25.0, 24.5, "20H10NA", 24.5, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 5, 108, "6570-0", "VASO PICNIC DE LUJO", "11H01A", "VASO PÍCNIC", 10530, "VERDE TURQUESA (MB 0689)", "0689", 4.0, 200.07, 196.07, "11H01A", 196.07, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 5, 108, "6570-0", "VASO PICNIC DE LUJO", "11H01A", "VASO PÍCNIC", 5260, "ROJO (MB 0681)", "9009", 2.0, 99.94, 97.94, "11H01A", 97.94, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 5, 108, "6570-0", "VASO PICNIC DE LUJO", "11H01A", "VASO PÍCNIC", 5260, "NARANJA ATÓXICO (MB 0119)", "0119", 2.0, 99.94, 97.94, "11H01A", 97.94, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 5, 108, "6570-0", "VASO PICNIC DE LUJO", "11H01A", "VASO PÍCNIC", 5260, "AZUL REY (MB 0835)", "0835", 2.0, 99.94, 97.94, "11H01A", 97.94, "", 0.0, "", 0.0, "", 0.0], ["2026-10-16", 6, 217, "1012-0", "PIPOTE 85 LITROS", "50% 2908+20% 2811+30% MOLIDO", "PIPOTE 85 LITROS", 200, "GRIS POLAR (SIN CÓDIGO)", "(sin mapear)", 8.01, 534.0, 525.99, "2908", 263.0, "2811", 105.2, "MOLIDO", 157.8, "", 0.0], ["2026-10-16", 6, 217, "1012-0", "PIPOTE 85 LITROS", "50% 2908+20% 2811+30% MOLIDO", "PIPOTE 85 LITROS", 200, "VERDE OLIVA ATÓXICO (MB 0838)", "0838", 8.01, 534.0, 525.99, "2908", 263.0, "2811", 105.2, "MOLIDO", 157.8, "", 0.0], ["2026-10-19", 1, 139, "8071-0", "CONSERVADOR ALIMENT. CUADRADO", "2213 (STAR RESIN 50924)", "TAPA", 1717, "ARENA (SIN UV) (MB 0517)", "0517", 1.24, 61.81, 60.58, "2213 (STAR RESIN 50924)", 60.58, "", 0.0, "", 0.0, "", 0.0], ["2026-10-19", 1, 139, "8071-0", "CONSERVADOR ALIMENT. CUADRADO", "2213 (STAR RESIN 50924)", "TAPA", 1717, "VERDE PASTEL (MB 0106)", "0106", 1.24, 61.81, 60.58, "2213 (STAR RESIN 50924)", 60.58, "", 0.0, "", 0.0, "", 0.0], ["2026-10-19", 1, 139, "8071-0", "CONSERVADOR ALIMENT. CUADRADO", "2213 (STAR RESIN 50924)", "TAPA", 1717, "VINOTINTO (MB 0824)", "0824", 1.24, 61.81, 60.58, "2213 (STAR RESIN 50924)", 60.58, "", 0.0, "", 0.0, "", 0.0], ["2026-10-19", 2, 132, "4084-0", "CONSERVADOR REDONDO ELEGANCE GIGANTE", "2213 (STAR RESIN 50924)", "TAPA", 887, "ARENA (SIN UV) (MB 0517)", "0517", 1.06, 52.78, 51.72, "2213 (STAR RESIN 50924)", 51.72, "", 0.0, "", 0.0, "", 0.0], ["2026-10-19", 2, 132, "4084-0", "CONSERVADOR REDONDO ELEGANCE GIGANTE", "2213 (STAR RESIN 50924)", "TAPA", 887, "VERDE PASTEL (MB 0106)", "0106", 1.06, 52.78, 51.72, "2213 (STAR RESIN 50924)", 51.72, "", 0.0, "", 0.0, "", 0.0], ["2026-10-19", 2, 132, "4084-0", "CONSERVADOR REDONDO ELEGANCE GIGANTE", "2213 (STAR RESIN 50924)", "TAPA", 887, "VINOTINTO (MB 0824)", "0824", 1.06, 52.78, 51.72, "2213 (STAR RESIN 50924)", 51.72, "", 0.0, "", 0.0, "", 0.0], ["2026-10-20", 1, 133, "8029-0", "CONSERVADOR C/DIVISIONES GDE.", "2213 (STAR RESIN 50924)", "TAPA", 560, "ARENA (SIN UV) (MB 0517)", "0517", 0.91, 45.64, 44.73, "2213 (STAR RESIN 50924)", 44.73, "", 0.0, "", 0.0, "", 0.0], ["2026-10-20", 1, 133, "8029-0", "CONSERVADOR C/DIVISIONES GDE.", "2213 (STAR RESIN 50924)", "TAPA", 560, "VERDE PASTEL (MB 0106)", "0106", 0.91, 45.64, 44.73, "2213 (STAR RESIN 50924)", 44.73, "", 0.0, "", 0.0, "", 0.0], ["2026-10-20", 1, 133, "8029-0", "CONSERVADOR C/DIVISIONES GDE.", "2213 (STAR RESIN 50924)", "TAPA", 560, "VINOTINTO (MB 0824)", "0824", 0.91, 45.64, 44.73, "2213 (STAR RESIN 50924)", 44.73, "", 0.0, "", 0.0, "", 0.0], ["2026-10-20", 2, 306, "3704-0", "BOTELLA ELEGANCE MINI", "02R01CA-1 (SOPLADO)", "BOTELLA MINI", 11060, "NATURAL 70% (CARGADO 0633)", "0867", 5.0, 249.96, 244.96, "02R01CA-1 (SOPLADO)", 244.96, "", 0.0, "", 0.0, "", 0.0], ["2026-10-21", 1, 131, "1083-0", "PAPELERA PEDAL RED. ELEG.C/NEGRO", "478 (STYRON)", "PEDAL", 4000, "NEGRO (MB 0682)", "0682", 4.0, 200.0, 196.0, "478 (STYRON)", 196.0, "", 0.0, "", 0.0, "", 0.0], ["2026-10-21", 2, 121, "4096-0", "CONSERVADOR ELEGANCE GIGANTE", "20H10NA", "CONSERVADOR", 5070, "NATURAL 70% (CARGADO 0633)", "0867", 33.97, 1698.45, 1664.48, "20H10NA", 1664.48, "", 0.0, "", 0.0, "", 0.0], ["2026-10-21", 3, 134, "8039-0", "CONSERVADOR ALIM. MINILUNCH 1.26 LTS", "2213 (STAR RESIN 50924)", "TAPA", 853, "ARENA (SIN UV) (MB 0517)", "0517", 0.89, 44.37, 43.49, "2213 (STAR RESIN 50924)", 43.49, "", 0.0, "", 0.0, "", 0.0], ["2026-10-21", 3, 134, "8039-0", "CONSERVADOR ALIM. MINILUNCH 1.26 LTS", "2213 (STAR RESIN 50924)", "TAPA", 853, "VINOTINTO (MB 0824)", "0824", 0.89, 44.37, 43.49, "2213 (STAR RESIN 50924)", 43.49, "", 0.0, "", 0.0, "", 0.0], ["2026-10-21", 3, 134, "8039-0", "CONSERVADOR ALIM. MINILUNCH 1.26 LTS", "2213 (STAR RESIN 50924)", "TAPA", 853, "VERDE PASTEL (MB 0106)", "0106", 0.89, 44.37, 43.49, "2213 (STAR RESIN 50924)", 43.49, "", 0.0, "", 0.0, "", 0.0], ["2026-10-21", 4, 116, "6552-0", "JARRA DE 1 LITRO", "20H10NA", "JARRA ", 7915, "NATURAL 70% (CARGADO 0633)", "0867", 13.3, 664.86, 651.56, "20H10NA", 651.56, "", 0.0, "", 0.0, "", 0.0]], "materiales": [["11H01A", 30360.62, 57.0, 0.42700000000000005, 0.42700000000000005, "A", 34350.0, 2530.05, 13.6, "PP Homopolímero 11H01A", "PPH"], ["20H10NA", 17085.57, 44.0, 0.24, 0.667, "A", 34525.0, 1423.8, 24.2, "PP Homopolímero 20H10NA", "PPH"], ["MOLIDO", 5902.74, 29.0, 0.083, 0.75, "A", "sin match", "", "", "Molido (reciclado interno)", "Reciclado"], ["40H92C", 5076.54, 16.0, 0.071, 0.821, "B", 250.0, 423.04, 0.6, "PP Homopolímero 40H92C", "PPH"], ["05C06", 2450.4, 21.0, 0.034, 0.856, "B", 5750.0, 204.2, 28.2, "PP Copolímero 05C06", "PPC"], ["REF", 2450.4, 21.0, 0.034, 0.89, "B", "sin match", "", "", "Refuerzo", "Aditivo"], ["2908", 2118.74, 6.0, 0.03, 0.92, "B", 3000.0, 176.56, 17.0, "PEAD 2908 (Alathon/Esenttia)", "PEAD"], ["2213", 1835.7, 29.0, 0.026000000000000002, 0.946, "B", 3348.0, 152.98, 21.9, "PEBD Lineal 2213 (Excelene/Star Resin/LLB5000)", "PEBD"], ["60C90ND", 1667.18, 5.0, 0.023, 0.9690000000000001, "C", 5500.0, 138.93, 39.6, "PP Copolímero 60C90ND", "PPC"], ["2811", 847.49, 6.0, 0.012, 0.981, "C", 2675.0, 70.62, 37.9, "PEAD 2811 (HD2000-GP)", "PEAD"], ["6200B", 586.53, 1.0, 0.008, 0.9890000000000001, "C", 3500.0, 48.88, 71.6, "PEAD 6200B (HD5502H)", "PEAD"], ["30R", 311.64, 1.0, 0.004, 0.9940000000000001, "C", 5650.0, 25.97, 217.6, "PP Copolímero 30R40CD", "PPC"], ["02R01CA-1", 244.96, 1.0, 0.003, 0.997, "C", 6000.0, 20.41, 293.9, "PP Copolímero Random 02R01CA-1", "PPC"], ["478", 196.0, 1.0, 0.003, 1.0, "C", 3075.0, 16.33, 188.3, "Poliestireno de Alto Impacto STYRON 478", "PS"], ["TOTAL", 71134.49]], "colores": [["0629", "AZUL OSCURO", 141.61, 4.0, 0.111, 0.111, "A", 654.0, 11.8, "", 55.4], ["0682", "NEGRO", 140.88, 13.0, 0.111, 0.222, "A", 1925.0, 11.74, "", 164.0], ["0000", "NATURAL", 130.19, 11.0, 0.102, 0.324, "A", 225.0, 10.85, "", 20.7], ["0625", "BLANCO (SILLAS)", 117.94, 3.0, 0.09300000000000001, 0.41700000000000004, "A", 51950.0, 9.83, "", 5285.9], ["0867", "NATURAL (70%) (MB 0867)", 112.54, 8.0, 0.08800000000000001, 0.506, "A", 2525.0, 9.38, "", 269.2], ["0628", "VERDE OLIVA", 76.78, 8.0, 0.06, 0.5660000000000001, "A", 1814.0, 6.4, "", 283.5], ["9003", "BLANCO", 58.58, 18.0, 0.046, 0.612, "A", 51950.0, 4.88, "", 10641.9], ["(sin mapear)", "Gris Polar", 51.77, 4.0, 0.040999999999999995, 0.653, "A", "sin match", "", "", ""], ["9006", "MARRÓN (MB 0111)", 51.18, 5.0, 0.04, 0.693, "A", 2725.0, 4.27, "", 638.9], ["0835", "AZUL REY", 50.26, 5.0, 0.04, 0.732, "A", 6425.0, 4.19, "", 1534.0], ["0517", " ARENA ", 36.88, 12.0, 0.028999999999999998, 0.7609999999999999, "A", 1241.0, 3.07, "", 403.8], ["9001", "AZUL TRASLÚCIDO", 33.99, 3.0, 0.027000000000000003, 0.7879999999999999, "A", 10050.0, 2.83, "", 3548.1], ["0493", "TERRACOTA (MB 0493)", 32.73, 2.0, 0.026000000000000002, 0.8140000000000001, "B", 946.0, 2.73, "", 346.9], ["0858", "ROJO CAOBA", 29.02, 4.0, 0.023, 0.8370000000000001, "B", 3525.0, 2.42, "", 1457.5], ["0706", "AZUL STANHOME", 25.03, 4.0, 0.02, 0.856, "B", 3775.0, 2.09, "", 1810.0], ["0516", "ARENA (CON UV) (MB 0516)", 24.75, 2.0, 0.019, 0.8759999999999999, "B", 1283.0, 2.06, "", 622.1], ["0838", "VERDE OLIVA ATÓXICO (MB 0838)", 19.98, 2.0, 0.016, 0.8909999999999999, "B", 550.0, 1.67, "", 330.3], ["9002", "BEIGE", 19.49, 6.0, 0.015, 0.907, "B", 6775.0, 1.62, "", 4171.6], ["0106", "VERDE MENTA (PASTEL)", 17.22, 9.0, 0.013999999999999999, 0.92, "B", 2325.0, 1.44, "", 1620.1], ["0834", "AZUL COBALTO", 16.66, 5.0, 0.013000000000000001, 0.9329999999999999, "B", 3700.0, 1.39, "", 2665.7], ["9009", "ROJO", 14.0, 4.0, 0.011000000000000001, 0.9440000000000001, "B", 5475.0, 1.17, "", 4691.7], ["0819", "LILA  TRASLÚCIDO", 11.99, 2.0, 0.009000000000000001, 0.9540000000000001, "C", 5100.0, 1.0, "", 5104.3], ["0689", "TURQUESA (MB 0689)", 11.0, 2.0, 0.009000000000000001, 0.9620000000000001, "C", 750.0, 0.92, "", 817.9], ["9004", "GRIS", 9.51, 2.0, 0.006999999999999999, 0.97, "C", 2225.0, 0.79, "", 2807.9], ["0119", "NARANJA ATÓXICO (MB 0119)", 9.5, 2.0, 0.006999999999999999, 0.977, "C", 350.0, 0.79, "", 442.3], ["0824", "VINOTINTO (MB 0824)", 6.9, 6.0, 0.005, 0.983, "C", 525.0, 0.57, "", 913.3], ["0102", "AMARILLO CLARO (MB 0102)", 5.0, 1.0, 0.004, 0.987, "C", 1925.0, 0.42, "", 4617.4], ["9011", "VERDE (MB 0116)", 4.5, 1.0, 0.004, 0.99, "C", 6200.0, 0.37, "", 16537.7], ["0626", "VINOTINTO", 4.1, 3.0, 0.003, 0.9940000000000001, "C", 1400.0, 0.34, "", 4097.4], ["0108", "NARANJA", 3.5, 1.0, 0.003, 0.996, "C", 375.0, 0.29, "", 1284.4], ["0869", "AMARILLO TAPA", 1.88, 1.0, 0.001, 0.998, "C", 275.0, 0.16, "", 1756.6], ["0821", "VERDE MANZANA", 1.88, 1.0, 0.001, 0.9990000000000001, "C", 500.0, 0.16, "", 3193.9], ["9005", "GRIS PLATA", 1.0, 2.0, 0.001, 1.0, "C", 925.0, 0.08, "", 11108.9], ["", "TOTAL", 1272.22, 156.0]], "inv": [["🧪 MATERIA PRIMA"], ["Código", "Nombre", "Código interno", "Existencia (kg)"], ["01-11-0638", "PP HOM PROPILCO 20H10NA MI 21.50", "20H10NA", 34525.0], ["01-11-0641", "PP HOM PROPILCO 11H01A", "11H01A", 34350.0], ["01-11-0690", "PP HOM PROPILCO 18H86", "", 7500.0], ["01-13-0644", "POLIPROPILENO COPOLIMERO 05C06", "05C06", 5750.0], ["01-11-0691", "PP HOMOPOLIMERO 40H92C", "40H92C", 250.0], ["01-08-0656", "PEAD WEST POLYMER LL700W (HOMOTIPO 2908)", "2908", 3000.0], ["", "Subtotal Materia Prima", "", 135838.0], [], ["🎨 COLORANTES / MASTERBATCH"], ["Código", "Nombre", "", "Existencia (kg)"], ["01-13-0625", "PP CARGADO BLANCO  DP-C6-1227", "", 47650.0], ["02-04-0817", "MB  AZUL TRASLUCIDO DERPLAST DM-PB-6500", "", 5375.0], ["01-13-0629", "PP CARGADO AZUL NUEVO DP-C6 -6077", "", 654.0], ["02-04-0682", "MB NEGRO DERPLAST DM-PB-0000", "", 1450.0]]};
+</script>
+<script>
+(function () {
+  var D = DATA || {};
+  var O = D.ordenes || [];
+  var COLORES = { navy: '#0B1F33', cyan: '#00A6E0', orange: '#FF7A1A', green: '#1DB37A', purple: '#7A5AF8', pink: '#F2436B', gold: '#F5B700' };
+  var NIV = {
+    rojo: { t: 'CR\u00cdTICO', c: '#E5383B', s: 'menos de 7 d\u00edas', ic: '\ud83d\udd34' },
+    naranja: { t: 'BAJO', c: '#FF7A1A', s: '7 a 15 d\u00edas', ic: '\ud83d\udfe0' },
+    amarillo: { t: 'ATENCI\u00d3N', c: '#E6A700', s: '15 a 30 d\u00edas', ic: '\ud83d\udfe1' },
+    verde: { t: 'OK', c: '#1DB37A', s: '30 d\u00edas o m\u00e1s', ic: '\ud83d\udfe2' },
+    gris: { t: 'SIN DATO', c: '#8A99A8', s: 'sin inventario o sin consumo', ic: '\u26aa' }
+  };
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function num(v) { if (typeof v === 'number') return v; var s = String(v == null ? '' : v).replace(/,/g, '').trim(); if (s === '' || isNaN(Number(s))) return null; return Number(s); }
+  function fmt(v, d) { var n = num(v); if (n === null) return '\u2013'; return n.toLocaleString('en-US', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
+  function nivel(dias) { var d = num(dias); if (d === null) return 'gris'; if (d < 7) return 'rojo'; if (d < 15) return 'naranja'; if (d < 30) return 'amarillo'; return 'verde'; }
+  function fcorta(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] : String(iso); }
+  function flarga(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : String(iso); }
+  function sumarDias(iso, dias) { var p = String(iso).split('-'); if (p.length !== 3) return ''; var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])); d.setDate(d.getDate() + Math.floor(dias)); var m = d.getMonth() + 1, dd = d.getDate(); return (dd < 10 ? '0' : '') + dd + '/' + (m < 10 ? '0' : '') + m + '/' + d.getFullYear(); }
+  function limpiarColor(s) { return String(s || '').replace(/\s*\((MB|CARGADO|CHEMITON|SIN C[\u00d3O]DIGO)[^)]*\)\s*$/i, '').replace(/\s+/g, ' ').trim().toUpperCase(); }
+  var PAL = [['AZUL OSCURO', '#1E3A5F'], ['AZUL REY', '#1F45B0'], ['STANHOME', '#2F6FB3'], ['COBALTO', '#1F4FBF'], ['AZUL TRASL', '#5FA8E6'], ['CELESTE', '#6CC4EE'], ['AZUL AGUA', '#4FC3D9'], ['AZUL GRIS', '#6C86A3'], ['AZUL', '#2C64C4'],
+    ['VERDE OLIVA', '#6B7F2A'], ['MENTA', '#7CCFA4'], ['PASTEL', '#7CCFA4'], ['MANZANA', '#7FBF3A'], ['VERDE TRASL', '#4CC17E'], ['TURQUESA', '#16A89A'], ['VERDE', '#2E8B57'],
+    ['ROJO CAOBA', '#7B2D22'], ['VINO', '#7A1F35'], ['ROJO', '#D32F2F'], ['CAOBA', '#7B3F2A'], ['TERRACOTA', '#B5603A'], ['ARCILLA', '#B5603A'], ['ARENA', '#C8A97A'], ['MARR', '#6D4C41'],
+    ['BEIGE', '#D9C29A'], ['CREMA', '#E8D6A8'], ['NATURAL', '#CDBF9F'], ['BLANCO', '#E9EEF3'], ['PLATA', '#AEB6BE'], ['GRIS', '#8C969F'], ['NEGRO', '#222831'],
+    ['LILA', '#B48AE0'], ['VIOLETA', '#7E57C2'], ['MORADO', '#6A1B9A'], ['FUCSIA', '#D81B60'], ['ROSADO', '#F06292'], ['NARANJA', '#F57C00'], ['AMARILLO', '#F2B800'], ['GUAYABA', '#F2786B']];
+  function hexColor(n) { var u = String(n || '').toUpperCase(); for (var i = 0; i < PAL.length; i++) { if (u.indexOf(PAL[i][0]) !== -1) return PAL[i][1]; } return '#8A99A8'; }
+
+  var hoy = D.hoy || '';
+  var LEAD = 7;
+  try { var g = Number(localStorage.getItem('manaplasLead')); if (g >= 0 && g <= 120 && localStorage.getItem('manaplasLead') !== null) LEAD = g; } catch (e) {}
+  var pedirInfo = function (dias) { var d = num(dias); if (d === null) return null; var faltan = d - LEAD; if (faltan <= 0) return { k: 'ya', t: '\ud83d\uded2 PEDIR YA', f: 'hoy' }; if (faltan <= 7) return { k: 'pronto', t: '\ud83d\uded2 Pedir antes del ' + sumarDias(hoy, faltan), f: sumarDias(hoy, faltan) }; return { k: 'ok', t: 'Pedir antes del ' + sumarDias(hoy, faltan), f: sumarDias(hoy, faltan) }; };
+  var mats = (D.materiales || []).filter(function (r) { return r[0] && String(r[0]) !== 'TOTAL'; }).map(function (r) {
+    return { nombre: String(r[0]), desc: r[9] || String(r[0]), familia: r[10] || '', kg: num(r[1]) || 0, n: num(r[2]) || 0, abc: r[5], exist: num(r[6]), existTxt: r[6], diario: num(r[7]), dias: num(r[8]) };
+  });
+  var interno = { 'MOLIDO': 1, 'REF': 1 };
+  var colsRaw = (D.colores || []).filter(function (r) { return r[1] && String(r[1]) !== 'TOTAL'; }).map(function (r) {
+    return { codigo: String(r[0]), nombre: limpiarColor(r[1]), kg: num(r[2]) || 0, n: num(r[3]) || 0, exist: num(r[7]), existTxt: r[7], diario: num(r[8]), match: r[9] || '', dias: num(r[10]) };
+  });
+  var cols = [];
+  var porNombre = {};
+  colsRaw.forEach(function (c) {
+    var k = c.nombre;
+    if (!porNombre[k]) { porNombre[k] = c; cols.push(c); return; }
+    var p = porNombre[k];
+    p.kg += c.kg; p.n += c.n;
+    if (p.diario !== null && c.diario !== null) p.diario += c.diario;
+    if (p.exist !== null && p.diario) p.dias = p.exist / p.diario;
+  });
+
+  var dias = {}, prod = {}, maq = {}, kgMP = 0, kgCol = 0, prods = {};
+  O.forEach(function (o) {
+    var kgT = num(o[11]) || 0, kc = num(o[10]) || 0, km = num(o[12]) || 0;
+    dias[o[0]] = (dias[o[0]] || 0) + kgT;
+    prod[o[4]] = (prod[o[4]] || 0) + (num(o[7]) || 0);
+    var m = 'M\u00e1q. ' + o[2];
+    if (!maq[m]) maq[m] = { kg: 0, n: 0 };
+    maq[m].kg += kgT; maq[m].n += 1;
+    kgMP += km; kgCol += kc; prods[o[4]] = 1;
+  });
+  var fechas = Object.keys(dias).sort();
+  var nMaq = Object.keys(maq).length;
+
+  var periodo = fechas.length ? 'Del ' + flarga(fechas[0]) + ' al ' + flarga(fechas[fechas.length - 1]) + '  \u00b7  ' + O.length + ' \u00f3rdenes' : 'Sin \u00f3rdenes cargadas';
+  $('periodo').textContent = periodo;
+  $('ahora').textContent = D.ahora || '';
+
+  var cuenta = function (lista) { var c = { rojo: 0, naranja: 0, amarillo: 0, verde: 0, gris: 0 }; lista.forEach(function (x) { c[nivel(x.dias)]++; }); return c; };
+  var mpReal = mats.filter(function (m) { return !interno[m.nombre.toUpperCase()]; });
+  var cMP = cuenta(mpReal), cCOL = cuenta(cols);
+
+  var alertas = [];
+  var add = function (niv, ic, titulo, detalle, der) { alertas.push({ niv: niv, ic: ic, t: titulo, d: detalle, der: der || '' }); };
+  var orden = { rojo: 0, naranja: 1, amarillo: 2, info: 3 };
+  mpReal.concat(cols.map(function (c) { return { nombre: c.nombre, desc: 'Colorante', dias: c.dias, exist: c.exist, diario: c.diario, esCol: true }; })).forEach(function (x) {
+    var nv = nivel(x.dias);
+    var pi = pedirInfo(x.dias);
+    var nombreX = (x.esCol ? 'Colorante ' : 'Materia prima ') + (x.esCol ? x.nombre : (x.desc || x.nombre));
+    var txtPedir = pi ? (pi.k === 'ya' ? ' Hay que pedirlo YA (tarda ' + LEAD + ' d\u00edas en llegar).' : ' Pedirlo antes del ' + pi.f + '.') : '';
+    if (nv === 'rojo' || nv === 'naranja') {
+      add(nv, NIV[nv].ic, nombreX + (nv === 'rojo' ? ' se est\u00e1 acabando' : ' est\u00e1 bajo'),
+        'Quedan ' + fmt(x.exist) + ' kg y se usan ' + fmt(x.diario, 1) + ' kg por d\u00eda. Se acabar\u00eda aprox. el ' + sumarDias(hoy, x.dias) + '.' + txtPedir, fmt(x.dias, 1) + ' d\u00edas');
+    } else if (pi && pi.k === 'ya') {
+      add('naranja', '\ud83d\uded2', 'Hay que pedir ya: ' + (x.esCol ? x.nombre : (x.desc || x.nombre)),
+        'Le quedan ' + fmt(x.dias, 1) + ' d\u00edas y el material tarda ' + LEAD + ' d\u00edas en llegar. Se acabar\u00eda aprox. el ' + sumarDias(hoy, x.dias) + '.', fmt(x.dias, 1) + ' d\u00edas');
+    }
+  });
+  var sinMap = {};
+  O.forEach(function (o) { if (String(o[9]).indexOf('sin mapear') !== -1) { var k = limpiarColor(o[8]); sinMap[k] = (sinMap[k] || 0) + 1; } });
+  Object.keys(sinMap).forEach(function (k) { add('amarillo', '\ud83c\udfa8', 'Color sin c\u00f3digo: ' + k, sinMap[k] + ' orden(es) con este color no cuentan en el inventario de colorantes. Agr\u00e9galo en la pesta\u00f1a Colores.', sinMap[k] + ' \u00f3rd.'); });
+  var receta = O.filter(function (o) { return String(o[13]).toLowerCase().indexOf('definir receta') !== -1; });
+  if (receta.length) add('amarillo', '\ud83c\udf73', '\u00d3rdenes con receta por definir', receta.length + ' orden(es) usan una mezcla que no est\u00e1 en Recetas de Material: ' + esc(receta.map(function (o) { return o[5]; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' \u00b7 ')), receta.length + ' \u00f3rd.');
+  var revisar = O.filter(function (o) { return String(o[11]).indexOf('revisar') !== -1 || String(o[12]).indexOf('revisar') !== -1; });
+  if (revisar.length) add('amarillo', '\u270f\ufe0f', '\u00d3rdenes con datos a revisar', revisar.length + ' orden(es) tienen cantidad o peso mal escrito en Seguimiento.', revisar.length + ' \u00f3rd.');
+  mats.forEach(function (m) { if (interno[m.nombre.toUpperCase()]) return; if (m.exist === null) add('info', '\ud83d\udce6', 'Material sin inventario: ' + m.desc, 'Se us\u00f3 en ' + m.n + ' rengl\u00f3n(es) pero no aparece en la pesta\u00f1a Inv.', ''); });
+  var amar = mpReal.concat(cols).filter(function (x) { return nivel(x.dias) === 'amarillo'; }).length;
+  if (amar) add('info', '\ud83d\udfe1', amar + ' producto(s) con 15 a 30 d\u00edas', 'No es urgente, pero conviene ir pidiendo. M\u00edralos en las pesta\u00f1as de Materia prima y Colorantes.', '');
+  alertas.sort(function (a, b) { return orden[a.niv] - orden[b.niv]; });
+
+  var criticos = cMP.rojo + cCOL.rojo;
+  var est = $('estado');
+  if (criticos > 0) { est.className = 'estado bad'; est.textContent = '\ud83d\udd34 ' + criticos + (criticos === 1 ? ' producto cr\u00edtico' : ' productos cr\u00edticos'); }
+  else if (cMP.naranja + cCOL.naranja > 0) { est.className = 'estado warn'; est.textContent = '\ud83d\udfe0 ' + (cMP.naranja + cCOL.naranja) + ' con inventario bajo'; }
+  else { est.className = 'estado ok'; est.textContent = '\ud83d\udfe2 Inventario en buen nivel'; }
+  var setBadge = function (id, n, w) { var b = $(id); if (!n) { b.style.display = 'none'; return; } b.textContent = n; if (w) b.className = 'badge w'; };
+  setBadge('bmp', cMP.rojo || cMP.naranja, !cMP.rojo);
+  setBadge('bcol', cCOL.rojo || cCOL.naranja, !cCOL.rojo);
+  setBadge('bal', alertas.filter(function (a) { return a.niv !== 'info'; }).length, criticos === 0);
+
+  var kpis = [['\u00d3RDENES', fmt(O.length), '', 'en el periodo', COLORES.cyan], ['D\u00cdAS', fmt(fechas.length), '', 'con producci\u00f3n', COLORES.purple], ['PRODUCTOS', fmt(Object.keys(prods).length), '', 'distintos', COLORES.pink],
+    ['MATERIA PRIMA', fmt(kgMP), 'kg', 'de las \u00f3rdenes', COLORES.orange], ['COLORANTE', fmt(kgCol), 'kg', 'de las \u00f3rdenes', COLORES.green], ['M\u00c1QUINAS', fmt(nMaq), '', 'trabajando', COLORES.navy]];
+  $('kpis').innerHTML = kpis.map(function (k) { return '<div class="kpi" style="background:' + k[4] + '"><div class="l">' + k[0] + '</div><div class="v">' + k[1] + (k[2] ? '<span class="u">' + k[2] + '</span>' : '') + '</div><div class="s">' + k[3] + '</div></div>'; }).join('');
+
+  var semres = function (c) { return ['rojo', 'naranja', 'amarillo', 'verde', 'gris'].map(function (k) { return '<div class="n-' + k + '"><b>' + c[k] + '</b><span>' + NIV[k].ic + ' ' + NIV[k].t + '</span></div>'; }).join(''); };
+  $('semMP').innerHTML = semres(cMP);
+  $('semCOL').innerHTML = semres(cCOL);
+
+  var alHtml = function (a) { return '<div class="al ' + a.niv + '"><div class="ic">' + a.ic + '</div><div><b>' + esc(a.t) + '</b><span>' + a.d + '</span></div>' + (a.der ? '<div class="der">' + esc(a.der) + '</div>' : '') + '</div>'; };
+  var urg = alertas.filter(function (a) { return a.niv === 'rojo' || a.niv === 'naranja'; }).slice(0, 6);
+  $('urgentes').innerHTML = urg.length ? urg.map(alHtml).join('') : '<div class="al ok"><div class="ic">\ud83d\udfe2</div><div><b>Nada urgente</b><span>Todo lo que se usa tiene 15 d\u00edas o m\u00e1s de inventario.</span></div></div>';
+  $('listaAl').innerHTML = alertas.length ? alertas.map(alHtml).join('') : '<div class="al ok"><div class="ic">\ud83d\udfe2</div><div><b>Sin alertas</b><span>Todo est\u00e1 en orden.</span></div></div>';
+
+  var chartDia = function (id) {
+    var el = $(id), vals = fechas.map(function (f) { return dias[f]; });
+    if (!vals.length) { el.innerHTML = '<div class="vacio">Sin \u00f3rdenes.</div>'; return; }
+    var W = 760, H = 260, pl = 50, pr = 8, pt = 22, pb = 30, iw = W - pl - pr, ih = H - pt - pb;
+    var mx = Math.max.apply(null, vals), paso = Math.pow(10, Math.floor(Math.log(mx || 1) / Math.LN10)), tope = Math.ceil((mx || 1) / paso) * paso, bw = iw / vals.length;
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '">';
+    for (var g = 0; g <= 4; g++) { var y = pt + ih - ih * g / 4; s += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y + '" y2="' + y + '"/><text x="' + (pl - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + fmt(tope * g / 4) + '</text>'; }
+    vals.forEach(function (v, i) {
+      var h = ih * v / tope, x = pl + i * bw + bw * .18, w = bw * .64, y = pt + ih - h;
+      s += '<rect rx="4" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="#FF7A1A"><title>' + fcorta(fechas[i]) + ': ' + fmt(v) + ' kg</title></rect>';
+      if (vals.length <= 18) s += '<text class="vl" x="' + (x + w / 2) + '" y="' + (y - 5) + '" text-anchor="middle">' + fmt(v) + '</text>';
+      s += '<text x="' + (x + w / 2) + '" y="' + (H - 9) + '" text-anchor="middle">' + fcorta(fechas[i]) + '</text>';
+    });
+    el.innerHTML = s + '</svg>';
+  };
+  chartDia('chDia1'); chartDia('chDia2');
+
+  var barras = function (id, filas, unidad, colorFn, dec) {
+    var el = $(id); if (!filas.length) { el.innerHTML = '<div class="vacio">Sin datos.</div>'; return; }
+    var mx = Math.max.apply(null, filas.map(function (f) { return f[1]; })) || 1;
+    el.innerHTML = filas.map(function (f, i) {
+      var c = colorFn(f, i);
+      return '<div class="br"><div class="t" title="' + esc(f[0]) + '">' + (f[2] ? '<i class="sw" style="background:' + c + '"></i>' : '') + esc(f[0]) + (f[3] ? ' <span style="color:var(--muted)">' + esc(f[3]) + '</span>' : '') + '</div><div class="v">' + fmt(f[1], dec) + ' ' + unidad + '</div><div class="tr"><i style="width:' + (100 * f[1] / mx).toFixed(1) + '%;background:' + c + '"></i></div></div>';
+    }).join('');
+  };
+  var top = function (obj, n) { return Object.keys(obj).map(function (k) { return [k, obj[k]]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, n); };
+  barras('bProd', top(prod, 10), 'pzs', function () { return COLORES.cyan; }, 0);
+  barras('bMaq', Object.keys(maq).map(function (k) { return [k, maq[k].kg, false, '(' + maq[k].n + ' \u00f3rd.)']; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 12), 'kg', function () { return COLORES.purple; }, 0);
+  barras('bMat', mats.slice().sort(function (a, b) { return b.kg - a.kg; }).slice(0, 12).map(function (m) { return [m.nombre, m.kg, false, m.familia ? '\u00b7 ' + m.familia : '']; }), 'kg', function () { return COLORES.orange; }, 0);
+  barras('bCol', cols.slice().sort(function (a, b) { return b.kg - a.kg; }).slice(0, 12).map(function (c) { return [c.nombre, c.kg, true]; }), 'kg', function (f) { return hexColor(f[0]); }, 1);
+
+  var leyenda = ['rojo', 'naranja', 'amarillo', 'verde', 'gris'].map(function (k) { return '<span><i style="background:' + NIV[k].c + '"></i>' + NIV[k].t + ': ' + NIV[k].s + '</span>'; }).join('');
+  $('ley1').innerHTML = leyenda; $('ley2').innerHTML = leyenda;
+
+  var tarjeta = function (x, esCol) {
+    var nv = nivel(x.dias), N = NIV[nv], d = num(x.dias);
+    var luz = '<div class="luz"><i class="r' + (nv === 'rojo' || nv === 'naranja' ? ' on' : '') + '"></i><i class="a' + (nv === 'amarillo' ? ' on' : '') + '"></i><i class="v' + (nv === 'verde' ? ' on' : '') + '"></i></div>';
+    var titulo = esCol ? '<i class="sw" style="background:' + hexColor(x.nombre) + '"></i>' + esc(x.nombre) : esc(x.nombre);
+    var desc = esCol ? (x.codigo && x.codigo.indexOf('sin') === -1 ? 'C\u00f3digo ' + esc(x.codigo) : 'Sin c\u00f3digo en Colores') : esc(x.desc) + (x.familia ? ' \u00b7 ' + esc(x.familia) : '');
+    var diasTxt = d === null ? (x.exist === null ? 'Sin inventario' : 'Sin consumo') : fmt(d, 1) + ' <small>d\u00edas</small>';
+    var meta = '<span>Hay <b>' + (x.exist === null ? esc(x.existTxt || '\u2013') : fmt(x.exist) + ' kg') + '</b></span><span>Uso diario <b>' + fmt(x.diario, 1) + ' kg</b></span>';
+    if (d !== null) meta += '<span>Se acaba aprox. <b>' + sumarDias(hoy, d) + '</b></span>';
+    var pi = pedirInfo(d);
+    var pedirHtml = pi ? '<div class="pedir ' + pi.k + '">' + pi.t + '</div>' : '';
+    var pct = d === null ? 0 : Math.min(100, d / 60 * 100);
+    return '<div class="sem ' + nv + '">' + luz + '<div class="info"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div class="nom">' + titulo + '</div><span class="etq" style="background:' + N.c + ';color:#fff">' + N.t + '</span></div><div class="desc">' + desc + '</div><div class="dias">' + diasTxt + '</div><div class="meta">' + meta + '</div>' + pedirHtml + '<div class="barra"><i style="width:' + pct + '%;background:' + N.c + '"></i></div></div></div>';
+  };
+  var ordenDias = function (a, b) { var da = num(a.dias), db = num(b.dias); return (da === null ? 1e9 : da) - (db === null ? 1e9 : db); };
+  var filtroSem = function (contId, gridId, lista, esCol) {
+    var actual = '';
+    var cont = $(contId);
+    cont.innerHTML = '<input type="search" placeholder="Buscar...">' + ['', 'rojo', 'naranja', 'amarillo', 'verde', 'gris'].map(function (k) { return '<button class="chip' + (k === '' ? ' on' : '') + '" data-n="' + k + '" type="button">' + (k ? NIV[k].ic + ' ' + NIV[k].t : 'Todos') + '</button>'; }).join('');
+    var input = cont.querySelector('input');
+    var pintar = function () {
+      var q = input.value.trim().toUpperCase();
+      var l = lista.filter(function (x) { return (!actual || nivel(x.dias) === actual) && (!q || (x.nombre + ' ' + (x.desc || '') + ' ' + (x.codigo || '')).toUpperCase().indexOf(q) !== -1); }).sort(ordenDias);
+      $(gridId).innerHTML = l.length ? l.map(function (x) { return tarjeta(x, esCol); }).join('') : '<div class="vacio">No hay nada en este nivel.</div>';
+    };
+    Array.prototype.forEach.call(cont.querySelectorAll('.chip'), function (b) { b.addEventListener('click', function () { Array.prototype.forEach.call(cont.querySelectorAll('.chip'), function (x) { x.classList.remove('on'); }); b.classList.add('on'); actual = b.getAttribute('data-n'); pintar(); }); });
+    input.addEventListener('input', pintar);
+    pintar();
+  };
+  filtroSem('fmp', 'gridMP', mpReal, false);
+  filtroSem('fcol', 'gridCOL', cols, true);
+
+  fechas.slice().reverse().forEach(function (f) { var o = document.createElement('option'); o.value = f; o.textContent = flarga(f); $('sFecha').appendChild(o); });
+  Object.keys(maq).sort(function (a, b) { return Number(a.replace(/\D/g, '')) - Number(b.replace(/\D/g, '')); }).forEach(function (m) { var o = document.createElement('option'); o.value = m.replace('M\u00e1q. ', ''); o.textContent = m; $('sMaq').appendChild(o); });
+  var soloProb = false;
+  var problema = function (o) { return String(o[9]).indexOf('sin mapear') !== -1 || String(o[13]).toLowerCase().indexOf('definir') !== -1 || String(o[12]).indexOf('revisar') !== -1; };
+  var pintarOrd = function () {
+    var q = $('qOrd').value.trim().toUpperCase(), f = $('sFecha').value, m = $('sMaq').value;
+    var l = O.filter(function (o) { return (!f || o[0] === f) && (!m || String(o[2]) === m) && (!soloProb || problema(o)) && (!q || [o[3], o[4], o[5], o[6], o[8], o[9]].join(' ').toUpperCase().indexOf(q) !== -1); });
+    var tk = l.reduce(function (s, o) { return s + (num(o[11]) || 0); }, 0);
+    $('ordHint').textContent = 'Mostrando ' + l.length + ' de ' + O.length + ' renglones  \u00b7  ' + fmt(tk) + ' kg de material.';
+    $('tOrd').innerHTML = '<thead><tr><th>Fecha</th><th class="n">OP</th><th class="n">M\u00e1q.</th><th>Producto</th><th class="hide-m">Componente</th><th class="hide-m">Material</th><th>Color</th><th class="n">Cantidad</th><th class="n">Kg material</th><th class="n hide-m">Kg colorante</th></tr></thead><tbody>' +
+      l.map(function (o) {
+        var sm = String(o[9]).indexOf('sin mapear') !== -1, sr = String(o[13]).toLowerCase().indexOf('definir') !== -1;
+        return '<tr><td>' + fcorta(o[0]) + '</td><td class="n">' + esc(o[1]) + '</td><td class="n">' + esc(o[2]) + '</td><td>' + esc(o[4]) + '</td><td class="hide-m">' + esc(o[6]) + '</td><td class="hide-m">' + esc(o[5]) + (sr ? ' <span class="mark">\u00b7 sin receta</span>' : '') + '</td><td><i class="sw" style="background:' + hexColor(limpiarColor(o[8])) + '"></i>' + esc(limpiarColor(o[8])) + (sm ? ' <span class="mark">\u00b7 sin c\u00f3digo</span>' : '') + '</td><td class="n">' + fmt(o[7]) + '</td><td class="n">' + fmt(o[11], 1) + '</td><td class="n hide-m">' + fmt(o[10], 2) + '</td></tr>';
+      }).join('') + '</tbody>';
+  };
+  ['qOrd', 'sFecha', 'sMaq'].forEach(function (id) { $(id).addEventListener('input', pintarOrd); $(id).addEventListener('change', pintarOrd); });
+  $('cProb').addEventListener('click', function () { soloProb = !soloProb; this.classList.toggle('on', soloProb); pintarOrd(); });
+  pintarOrd();
+
+  var inv = [], tipo = 'Materia prima';
+  (D.inv || []).forEach(function (r) {
+    var c = String(r[0] || '');
+    if (String(r[1]).indexOf('COLORANTES') !== -1 || c.indexOf('COLORANTES') !== -1) tipo = 'Colorante';
+    if (/^\d\d-\d\d-\d{4}$/.test(c)) inv.push({ cod: c, nom: String(r[1]), int: r[2], ex: num(r[3]), tipo: tipo });
+  });
+  var usoMP = {}; mats.forEach(function (m) { usoMP[m.nombre.toUpperCase()] = m; });
+  var tInv = '';
+  var pintarInv = function () {
+    var q = $('qInv').value.trim().toUpperCase();
+    var l = inv.filter(function (x) { return (!tInv || x.tipo === tInv) && (!q || (x.cod + ' ' + x.nom + ' ' + x.int).toUpperCase().indexOf(q) !== -1); });
+    var tot = l.reduce(function (s, x) { return s + (x.ex || 0); }, 0);
+    $('tInv').innerHTML = '<thead><tr><th>C\u00f3digo</th><th>Nombre</th><th class="hide-m">Tipo</th><th class="hide-m">C\u00f3digo interno</th><th class="n">Existencia</th><th>Uso en el periodo</th></tr></thead><tbody>' +
+      l.map(function (x) {
+        var u = x.int ? usoMP[String(x.int).toUpperCase()] : null, uso = u ? '<span class="etq" style="background:' + NIV[nivel(u.dias)].c + ';color:#fff">' + fmt(u.dias, 1) + ' d\u00edas</span>' : '<span style="color:var(--muted)">' + (x.tipo === 'Colorante' ? 'ver Colorantes' : 'no se us\u00f3') + '</span>';
+        return '<tr><td>' + esc(x.cod) + '</td><td>' + (x.tipo === 'Colorante' ? '<i class="sw" style="background:' + hexColor(x.nom) + '"></i>' : '') + esc(x.nom) + '</td><td class="hide-m">' + x.tipo + '</td><td class="hide-m">' + esc(x.int || '') + '</td><td class="n">' + fmt(x.ex) + ' kg</td><td>' + uso + '</td></tr>';
+      }).join('') + '<tr><td></td><td><b>Total (' + l.length + ' productos)</b></td><td class="hide-m"></td><td class="hide-m"></td><td class="n"><b>' + fmt(tot) + ' kg</b></td><td></td></tr></tbody>';
+  };
+  $('qInv').addEventListener('input', pintarInv);
+  Array.prototype.forEach.call(document.querySelectorAll('#p-inv .chip'), function (b) { b.addEventListener('click', function () { Array.prototype.forEach.call(document.querySelectorAll('#p-inv .chip'), function (x) { x.classList.remove('on'); }); b.classList.add('on'); tInv = b.getAttribute('data-t'); pintarInv(); }); });
+  pintarInv();
+
+  Array.prototype.forEach.call(document.querySelectorAll('.leadIn'), function (inp) {
+    inp.value = LEAD;
+    inp.addEventListener('change', function () { var v = Number(inp.value); if (!(v >= 0 && v <= 120)) return; try { localStorage.setItem('manaplasLead', String(v)); } catch (e) {} var p = (document.querySelector('.tab.on') || {}).getAttribute ? document.querySelector('.tab.on').getAttribute('data-p') : ''; try { sessionStorage.setItem('manaplasTab', p); } catch (e) {} location.reload(); });
+  });
+  var abrir = function (p) {
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.classList.toggle('on', t.getAttribute('data-p') === p); });
+    Array.prototype.forEach.call(document.querySelectorAll('.panel'), function (s) { s.classList.toggle('on', s.id === 'p-' + p); });
+    window.scrollTo(0, 0);
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.addEventListener('click', function () { abrir(t.getAttribute('data-p')); }); });
+  try { var tg = sessionStorage.getItem('manaplasTab'); if (tg) { sessionStorage.removeItem('manaplasTab'); abrir(tg); } } catch (e) {}
+})();
+</script>
+</body>
+</html>

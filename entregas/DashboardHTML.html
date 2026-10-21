@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel Manaplas</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0B1F33; --navy2:#13314F; --cyan:#00A6E0; --orange:#FF7A1A; --green:#1DB37A; --purple:#7A5AF8; --pink:#F2436B; --gold:#F5B700;
+  --bg:#EEF2F7; --card:#FFFFFF; --ink:#0B1F33; --muted:#5C6B7A; --line:#E1E7EF; --soft:#F6F8FB;
+  --rojo:#E5383B; --rojo-s:#FDE8E9; --naranja:#FF7A1A; --naranja-s:#FFF0E5; --amarillo:#E6A700; --amarillo-s:#FFF7DB; --verde:#1DB37A; --verde-s:#E3F7EE; --gris:#8A99A8; --gris-s:#EEF1F4;
+  --shadow:0 1px 2px rgba(11,31,51,.06),0 6px 18px rgba(11,31,51,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0A1522; --card:#11233A; --ink:#E8EFF7; --muted:#9DB0C3; --line:#1F3550; --soft:#0E1D30;
+    --rojo-s:#3A1418; --naranja-s:#3A2414; --amarillo-s:#382D0C; --verde-s:#0F3226; --gris-s:#1A2B40;
+    --shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Montserrat,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.top{background:var(--navy);color:#fff}
+.top-in{max-width:1240px;margin:0 auto;padding:22px 16px 0}
+.marca{color:var(--orange);font-weight:800;font-size:12px;letter-spacing:.14em}
+.titulo{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-top:4px}
+h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.01em}
+.periodo{color:#9FC3E0;font-size:13px;margin-top:4px}
+.estado{padding:10px 16px;border-radius:12px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px}
+.estado.bad{background:var(--rojo)} .estado.ok{background:var(--green)} .estado.warn{background:var(--orange)}
+.franja{display:flex;height:6px;margin-top:18px}
+.franja i{flex:1}
+nav{display:flex;gap:4px;overflow-x:auto;padding:14px 0 0;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+.tab{border:0;background:transparent;color:#B8CCE0;font:inherit;font-weight:700;font-size:13px;padding:11px 16px;border-radius:10px 10px 0 0;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:7px}
+.tab:hover{color:#fff;background:rgba(255,255,255,.06)}
+.tab.on{background:var(--bg);color:var(--ink)}
+.badge{background:var(--rojo);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px;font-weight:800}
+.badge.w{background:var(--orange)}
+main{max-width:1240px;margin:0 auto;padding:20px 16px 48px}
+.panel{display:none}
+.panel.on{display:block}
+.grid{display:grid;gap:14px}
+.k6{grid-template-columns:repeat(6,minmax(0,1fr))}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);min-width:0}
+.card h2{margin:0 0 2px;font-size:15px;font-weight:800}
+.hint{color:var(--muted);font-size:12px;margin-bottom:12px}
+.mb{margin-bottom:14px}
+.kpi{border-radius:14px;padding:14px 16px;color:#fff;min-width:0}
+.kpi .l{font-size:11px;font-weight:700;letter-spacing:.06em;opacity:.9}
+.kpi .v{font-size:28px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.kpi .u{font-size:13px;font-weight:600;margin-left:4px;opacity:.85}
+.kpi .s{font-size:11px;opacity:.85}
+.semres{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.semres div{border-radius:12px;padding:12px;text-align:center}
+.semres b{display:block;font-size:26px;font-weight:800}
+.semres span{font-size:11px;font-weight:700}
+.n-rojo{background:var(--rojo-s);color:var(--rojo)} .n-naranja{background:var(--naranja-s);color:var(--naranja)}
+.n-amarillo{background:var(--amarillo-s);color:var(--amarillo)} .n-verde{background:var(--verde-s);color:var(--verde)} .n-gris{background:var(--gris-s);color:var(--gris)}
+.sems{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.sem{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;gap:14px;box-shadow:var(--shadow);border-left-width:6px;min-width:0}
+.sem.rojo{border-left-color:var(--rojo)} .sem.naranja{border-left-color:var(--naranja)} .sem.amarillo{border-left-color:var(--amarillo)} .sem.verde{border-left-color:var(--verde)} .sem.gris{border-left-color:var(--gris)}
+.luz{background:#14202E;border-radius:12px;padding:6px 5px;display:flex;flex-direction:column;gap:5px;align-self:flex-start}
+.luz i{width:16px;height:16px;border-radius:50%;background:#2E3B4A;display:block}
+.luz i.r.on{background:#FF3B3B;box-shadow:0 0 10px #FF3B3B}
+.luz i.a.on{background:#FFB020;box-shadow:0 0 10px #FFB020}
+.luz i.v.on{background:#22D17F;box-shadow:0 0 10px #22D17F}
+.sem .info{min-width:0;flex:1}
+.sem .nom{font-weight:800;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sem .desc{color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sem .dias{font-size:26px;font-weight:800;line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums}
+.sem .dias small{font-size:12px;font-weight:700}
+.sem.rojo .dias{color:var(--rojo)} .sem.naranja .dias{color:var(--naranja)} .sem.amarillo .dias{color:var(--amarillo)} .sem.verde .dias{color:var(--verde)} .sem.gris .dias{color:var(--gris)}
+.sem .meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.sem .meta b{color:var(--ink)}
+.barra{height:6px;border-radius:4px;background:var(--gris-s);overflow:hidden;margin-top:8px}
+.barra i{display:block;height:100%;border-radius:4px}
+.etq{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;letter-spacing:.04em}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.2);vertical-align:-1px;margin-right:6px}
+.filtros{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.filtros input,.filtros select{font:inherit;font-size:13px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);min-width:0}
+.filtros input{flex:1 1 220px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:12px;font-weight:700;padding:7px 12px;border-radius:999px;cursor:pointer}
+.chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;color:var(--muted);font-weight:700;font-size:11px;padding:8px 10px;border-bottom:2px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--card)}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr:hover td{background:var(--soft)}
+.mark{color:var(--rojo);font-weight:800}
+.bars{display:flex;flex-direction:column;gap:9px}
+.br{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center}
+.br .t{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.br .v{font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
+.br .tr{grid-column:1 / -1;height:9px;border-radius:5px;background:var(--gris-s);overflow:hidden}
+.br .tr i{display:block;height:100%;border-radius:5px}
+.chart svg{display:block;width:100%;height:auto}
+.chart text{fill:var(--muted);font-size:11px;font-family:Montserrat,Arial,sans-serif}
+.chart .vl{fill:var(--ink);font-weight:700}
+.chart line{stroke:var(--line)}
+.alertas{display:flex;flex-direction:column;gap:8px}
+.al{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px}
+.al .ic{font-size:18px;line-height:1.2}
+.al b{display:block;font-size:13px}
+.al span{font-size:12px;color:var(--muted)}
+.al.rojo{background:var(--rojo-s)} .al.naranja{background:var(--naranja-s)} .al.amarillo{background:var(--amarillo-s)} .al.info{background:var(--gris-s)} .al.ok{background:var(--verde-s)}
+.al .der{margin-left:auto;font-weight:800;white-space:nowrap;font-size:13px}
+.al.rojo .der{color:var(--rojo)} .al.naranja .der{color:var(--naranja)} .al.amarillo .der{color:var(--amarillo)}
+.pedir{display:inline-block;margin-top:6px;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px}
+.pedir.ya{background:var(--rojo);color:#fff}.pedir.pronto{background:var(--naranja-s);color:var(--naranja)}.pedir.ok{background:var(--gris-s);color:var(--muted)}
+.lead{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:6px 10px}
+.filtros .lead input{flex:0 0 64px;width:64px;font:inherit;font-weight:800;padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);text-align:center}
+.vacio{color:var(--muted);padding:16px 4px;font-size:13px}
+.leyenda{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:var(--muted);margin-bottom:12px}
+.leyenda span{display:flex;align-items:center;gap:6px}
+.leyenda i{width:10px;height:10px;border-radius:50%;display:inline-block}
+footer{color:var(--muted);font-size:12px;margin-top:20px;line-height:1.6}
+@media (max-width:1000px){.k6{grid-template-columns:repeat(3,minmax(0,1fr))}.g3{grid-template-columns:1fr 1fr}}
+@media (max-width:720px){.g2,.g3{grid-template-columns:1fr}.semres{grid-template-columns:repeat(3,minmax(0,1fr))}.hide-m{display:none}h1{font-size:21px}}
+@media (max-width:460px){.k6{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi .v{font-size:22px}}
+</style>
+</head>
+<body>
+<?
+var __D = (function () {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var tz = ss.getSpreadsheetTimeZone();
+  var esFecha = function (v) { return Object.prototype.toString.call(v) === '[object Date]'; };
+  var val = function (v) { return esFecha(v) ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : v; };
+  var tabla = function (nombre, fila, cols) {
+    var sh = ss.getSheetByName(nombre);
+    if (!sh) return [];
+    var lr = sh.getLastRow();
+    if (lr < fila) return [];
+    return sh.getRange(fila, 1, lr - fila + 1, cols).getValues().map(function (r) { return r.map(val); });
+  };
+  var seg = tabla('Seguimiento', 5, 30).filter(function (r) { return typeof r[8] === 'number' && r[0] !== ''; });
+  return {
+    ahora: Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm'),
+    hoy: Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd'),
+    ordenes: seg.map(function (r) { return [r[0], r[1], r[2], r[3], r[5], r[6], r[7], r[8], r[9], r[17], r[19], r[20], r[21], r[22], r[23], r[24], r[25], r[26], r[27], r[28], r[29]]; }),
+    materiales: tabla('Consumo por Material', 3, 11),
+    colores: tabla('Resumen Consumo', 3, 11),
+    inv: tabla('Inv', 3, 4)
+  };
+})();
+?>
+<div class="top"><div class="top-in">
+  <div class="marca">MANAPLAS</div>
+  <div class="titulo">
+    <div><h1>Panel de Producci&#243;n e Inventario</h1><div class="periodo" id="periodo"></div></div>
+    <div class="estado" id="estado"></div>
+  </div>
+  <nav id="tabs">
+    <button class="tab on" data-p="resumen" type="button">&#128202; Resumen</button>
+    <button class="tab" data-p="mp" type="button">&#129514; Materia prima <span class="badge" id="bmp"></span></button>
+    <button class="tab" data-p="col" type="button">&#127912; Colorantes <span class="badge" id="bcol"></span></button>
+    <button class="tab" data-p="prod" type="button">&#127981; Producci&#243;n</button>
+    <button class="tab" data-p="ord" type="button">&#128203; &#211;rdenes</button>
+    <button class="tab" data-p="inv" type="button">&#128230; Inventario</button>
+    <button class="tab" data-p="al" type="button">&#9888;&#65039; Alertas <span class="badge" id="bal"></span></button>
+  </nav>
+</div>
+<div class="franja"><i style="background:#00A6E0"></i><i style="background:#7A5AF8"></i><i style="background:#F2436B"></i><i style="background:#FF7A1A"></i><i style="background:#1DB37A"></i></div>
+</div>
+
+<main>
+  <section class="panel on" id="p-resumen">
+    <div class="grid k6 mb" id="kpis"></div>
+    <div class="grid g2 mb">
+      <div class="card"><h2>&#128678; Sem&#225;foro de materia prima</h2><div class="hint">Cu&#225;ntos materiales est&#225;n en cada nivel seg&#250;n los d&#237;as de inventario que les quedan.</div><div class="semres" id="semMP"></div></div>
+      <div class="card"><h2>&#128678; Sem&#225;foro de colorantes</h2><div class="hint">Igual, para los colores que se usaron en el periodo.</div><div class="semres" id="semCOL"></div></div>
+    </div>
+    <div class="grid g2 mb">
+      <div class="card"><h2>&#128293; Lo m&#225;s urgente</h2><div class="hint">Lo que se acaba primero y lo que hay que pedir ya, materia prima y colorantes juntos.</div><div class="alertas" id="urgentes"></div></div>
+      <div class="card"><h2>&#128200; Consumo por d&#237;a</h2><div class="hint">Kg de material de las &#243;rdenes, por fecha de emisi&#243;n.</div><div class="chart" id="chDia1"></div></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-mp">
+    <div class="card mb"><h2>&#129514; Materia prima: &#191;cu&#225;ntos d&#237;as me quedan?</h2>
+      <div class="hint">D&#237;as = existencia en inventario &#247; consumo promedio por d&#237;a. La fecha es cu&#225;ndo se acabar&#237;a si se sigue consumiendo igual.</div>
+      <div class="leyenda" id="ley1"></div><div class="filtros"><label class="lead">&#128666; El material tarda en llegar <input type="number" min="0" max="120" class="leadIn" value="7"> d&#237;as despu&#233;s de pedirlo</label></div>
+      <div class="filtros" id="fmp"></div>
+      <div class="sems" id="gridMP"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-col">
+    <div class="card mb"><h2>&#127912; Colorantes: &#191;cu&#225;ntos d&#237;as me quedan?</h2>
+      <div class="hint">Los colores con distinto c&#243;digo pero del mismo grupo se suman (por ejemplo, todos los NEGRO).</div>
+      <div class="leyenda" id="ley2"></div><div class="filtros"><label class="lead">&#128666; El colorante tarda en llegar <input type="number" min="0" max="120" class="leadIn" value="7"> d&#237;as despu&#233;s de pedirlo</label></div>
+      <div class="filtros" id="fcol"></div>
+      <div class="sems" id="gridCOL"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-prod">
+    <div class="card mb"><h2>&#128200; Consumo total por d&#237;a</h2><div class="hint">Kg de material + colorante de las &#243;rdenes emitidas cada d&#237;a.</div><div class="chart" id="chDia2"></div></div>
+    <div class="grid g2 mb">
+      <div class="card"><h2>&#127981; Productos m&#225;s fabricados</h2><div class="hint">Piezas en el periodo.</div><div class="bars" id="bProd"></div></div>
+      <div class="card"><h2>&#9881;&#65039; Kg por m&#225;quina</h2><div class="hint">Material usado por cada m&#225;quina.</div><div class="bars" id="bMaq"></div></div>
+    </div>
+    <div class="grid g2 mb">
+      <div class="card"><h2>&#129514; Materiales m&#225;s consumidos</h2><div class="hint">Kg por material (las mezclas ya repartidas seg&#250;n su receta).</div><div class="bars" id="bMat"></div></div>
+      <div class="card"><h2>&#127912; Colores m&#225;s consumidos</h2><div class="hint">Kg de colorante por color.</div><div class="bars" id="bCol"></div></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-ord">
+    <div class="card"><h2>&#128203; &#211;rdenes de producci&#243;n</h2><div class="hint" id="ordHint"></div>
+      <div class="filtros">
+        <input id="qOrd" type="search" placeholder="Buscar producto, color, material, SKU...">
+        <select id="sFecha"><option value="">Todas las fechas</option></select>
+        <select id="sMaq"><option value="">Todas las m&#225;quinas</option></select>
+        <button class="chip" id="cProb" type="button">Solo con problemas</button>
+      </div>
+      <div class="tw"><table id="tOrd"></table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-inv">
+    <div class="card"><h2>&#128230; Inventario completo</h2><div class="hint">Todo lo que hay en la pesta&#241;a Inv, incluso lo que no se us&#243; en el periodo.</div>
+      <div class="filtros">
+        <input id="qInv" type="search" placeholder="Buscar c&#243;digo o nombre...">
+        <button class="chip on" data-t="" type="button">Todo</button>
+        <button class="chip" data-t="Materia prima" type="button">Materia prima</button>
+        <button class="chip" data-t="Colorante" type="button">Colorantes</button>
+      </div>
+      <div class="tw"><table id="tInv"></table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-al">
+    <div class="card"><h2>&#9888;&#65039; Se&#241;ales de alerta</h2><div class="hint">Todo lo que necesita atenci&#243;n, de lo m&#225;s grave a lo menos grave.</div><div class="alertas" id="listaAl"></div></div>
+  </section>
+
+  <footer>Los datos se leen de la hoja al abrir esta p&#225;gina (<span id="ahora"></span>). El inventario y los d&#237;as salen de lo &#250;ltimo que calcul&#243; <b>&#128260; Actualizar todo</b>: si cargaste &#243;rdenes o inventario nuevo, dale primero a ese bot&#243;n en la hoja y luego recarga esta p&#225;gina.</footer>
+</main>
+
+<script>
+var DATA = <?!= JSON.stringify(__D).replace(/</g, '\\u003c') ?>;
+</script>
+<script>
+(function () {
+  var D = DATA || {};
+  var O = D.ordenes || [];
+  var COLORES = { navy: '#0B1F33', cyan: '#00A6E0', orange: '#FF7A1A', green: '#1DB37A', purple: '#7A5AF8', pink: '#F2436B', gold: '#F5B700' };
+  var NIV = {
+    rojo: { t: 'CR\u00cdTICO', c: '#E5383B', s: 'menos de 7 d\u00edas', ic: '\ud83d\udd34' },
+    naranja: { t: 'BAJO', c: '#FF7A1A', s: '7 a 15 d\u00edas', ic: '\ud83d\udfe0' },
+    amarillo: { t: 'ATENCI\u00d3N', c: '#E6A700', s: '15 a 30 d\u00edas', ic: '\ud83d\udfe1' },
+    verde: { t: 'OK', c: '#1DB37A', s: '30 d\u00edas o m\u00e1s', ic: '\ud83d\udfe2' },
+    gris: { t: 'SIN DATO', c: '#8A99A8', s: 'sin inventario o sin consumo', ic: '\u26aa' }
+  };
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function num(v) { if (typeof v === 'number') return v; var s = String(v == null ? '' : v).replace(/,/g, '').trim(); if (s === '' || isNaN(Number(s))) return null; return Number(s); }
+  function fmt(v, d) { var n = num(v); if (n === null) return '\u2013'; return n.toLocaleString('en-US', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
+  function nivel(dias) { var d = num(dias); if (d === null) return 'gris'; if (d < 7) return 'rojo'; if (d < 15) return 'naranja'; if (d < 30) return 'amarillo'; return 'verde'; }
+  function fcorta(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] : String(iso); }
+  function flarga(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : String(iso); }
+  function sumarDias(iso, dias) { var p = String(iso).split('-'); if (p.length !== 3) return ''; var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])); d.setDate(d.getDate() + Math.floor(dias)); var m = d.getMonth() + 1, dd = d.getDate(); return (dd < 10 ? '0' : '') + dd + '/' + (m < 10 ? '0' : '') + m + '/' + d.getFullYear(); }
+  function limpiarColor(s) { return String(s || '').replace(/\s*\((MB|CARGADO|CHEMITON|SIN C[\u00d3O]DIGO)[^)]*\)\s*$/i, '').replace(/\s+/g, ' ').trim().toUpperCase(); }
+  var PAL = [['AZUL OSCURO', '#1E3A5F'], ['AZUL REY', '#1F45B0'], ['STANHOME', '#2F6FB3'], ['COBALTO', '#1F4FBF'], ['AZUL TRASL', '#5FA8E6'], ['CELESTE', '#6CC4EE'], ['AZUL AGUA', '#4FC3D9'], ['AZUL GRIS', '#6C86A3'], ['AZUL', '#2C64C4'],
+    ['VERDE OLIVA', '#6B7F2A'], ['MENTA', '#7CCFA4'], ['PASTEL', '#7CCFA4'], ['MANZANA', '#7FBF3A'], ['VERDE TRASL', '#4CC17E'], ['TURQUESA', '#16A89A'], ['VERDE', '#2E8B57'],
+    ['ROJO CAOBA', '#7B2D22'], ['VINO', '#7A1F35'], ['ROJO', '#D32F2F'], ['CAOBA', '#7B3F2A'], ['TERRACOTA', '#B5603A'], ['ARCILLA', '#B5603A'], ['ARENA', '#C8A97A'], ['MARR', '#6D4C41'],
+    ['BEIGE', '#D9C29A'], ['CREMA', '#E8D6A8'], ['NATURAL', '#CDBF9F'], ['BLANCO', '#E9EEF3'], ['PLATA', '#AEB6BE'], ['GRIS', '#8C969F'], ['NEGRO', '#222831'],
+    ['LILA', '#B48AE0'], ['VIOLETA', '#7E57C2'], ['MORADO', '#6A1B9A'], ['FUCSIA', '#D81B60'], ['ROSADO', '#F06292'], ['NARANJA', '#F57C00'], ['AMARILLO', '#F2B800'], ['GUAYABA', '#F2786B']];
+  function hexColor(n) { var u = String(n || '').toUpperCase(); for (var i = 0; i < PAL.length; i++) { if (u.indexOf(PAL[i][0]) !== -1) return PAL[i][1]; } return '#8A99A8'; }
+
+  var hoy = D.hoy || '';
+  var LEAD = 7;
+  try { var g = Number(localStorage.getItem('manaplasLead')); if (g >= 0 && g <= 120 && localStorage.getItem('manaplasLead') !== null) LEAD = g; } catch (e) {}
+  var pedirInfo = function (dias) { var d = num(dias); if (d === null) return null; var faltan = d - LEAD; if (faltan <= 0) return { k: 'ya', t: '\ud83d\uded2 PEDIR YA', f: 'hoy' }; if (faltan <= 7) return { k: 'pronto', t: '\ud83d\uded2 Pedir antes del ' + sumarDias(hoy, faltan), f: sumarDias(hoy, faltan) }; return { k: 'ok', t: 'Pedir antes del ' + sumarDias(hoy, faltan), f: sumarDias(hoy, faltan) }; };
+  var mats = (D.materiales || []).filter(function (r) { return r[0] && String(r[0]) !== 'TOTAL'; }).map(function (r) {
+    return { nombre: String(r[0]), desc: r[9] || String(r[0]), familia: r[10] || '', kg: num(r[1]) || 0, n: num(r[2]) || 0, abc: r[5], exist: num(r[6]), existTxt: r[6], diario: num(r[7]), dias: num(r[8]) };
+  });
+  var interno = { 'MOLIDO': 1, 'REF': 1 };
+  var colsRaw = (D.colores || []).filter(function (r) { return r[1] && String(r[1]) !== 'TOTAL'; }).map(function (r) {
+    return { codigo: String(r[0]), nombre: limpiarColor(r[1]), kg: num(r[2]) || 0, n: num(r[3]) || 0, exist: num(r[7]), existTxt: r[7], diario: num(r[8]), match: r[9] || '', dias: num(r[10]) };
+  });
+  var cols = [];
+  var porNombre = {};
+  colsRaw.forEach(function (c) {
+    var k = c.nombre;
+    if (!porNombre[k]) { porNombre[k] = c; cols.push(c); return; }
+    var p = porNombre[k];
+    p.kg += c.kg; p.n += c.n;
+    if (p.diario !== null && c.diario !== null) p.diario += c.diario;
+    if (p.exist !== null && p.diario) p.dias = p.exist / p.diario;
+  });
+
+  var dias = {}, prod = {}, maq = {}, kgMP = 0, kgCol = 0, prods = {};
+  O.forEach(function (o) {
+    var kgT = num(o[11]) || 0, kc = num(o[10]) || 0, km = num(o[12]) || 0;
+    dias[o[0]] = (dias[o[0]] || 0) + kgT;
+    prod[o[4]] = (prod[o[4]] || 0) + (num(o[7]) || 0);
+    var m = 'M\u00e1q. ' + o[2];
+    if (!maq[m]) maq[m] = { kg: 0, n: 0 };
+    maq[m].kg += kgT; maq[m].n += 1;
+    kgMP += km; kgCol += kc; prods[o[4]] = 1;
+  });
+  var fechas = Object.keys(dias).sort();
+  var nMaq = Object.keys(maq).length;
+
+  var periodo = fechas.length ? 'Del ' + flarga(fechas[0]) + ' al ' + flarga(fechas[fechas.length - 1]) + '  \u00b7  ' + O.length + ' \u00f3rdenes' : 'Sin \u00f3rdenes cargadas';
+  $('periodo').textContent = periodo;
+  $('ahora').textContent = D.ahora || '';
+
+  var cuenta = function (lista) { var c = { rojo: 0, naranja: 0, amarillo: 0, verde: 0, gris: 0 }; lista.forEach(function (x) { c[nivel(x.dias)]++; }); return c; };
+  var mpReal = mats.filter(function (m) { return !interno[m.nombre.toUpperCase()]; });
+  var cMP = cuenta(mpReal), cCOL = cuenta(cols);
+
+  var alertas = [];
+  var add = function (niv, ic, titulo, detalle, der) { alertas.push({ niv: niv, ic: ic, t: titulo, d: detalle, der: der || '' }); };
+  var orden = { rojo: 0, naranja: 1, amarillo: 2, info: 3 };
+  mpReal.concat(cols.map(function (c) { return { nombre: c.nombre, desc: 'Colorante', dias: c.dias, exist: c.exist, diario: c.diario, esCol: true }; })).forEach(function (x) {
+    var nv = nivel(x.dias);
+    var pi = pedirInfo(x.dias);
+    var nombreX = (x.esCol ? 'Colorante ' : 'Materia prima ') + (x.esCol ? x.nombre : (x.desc || x.nombre));
+    var txtPedir = pi ? (pi.k === 'ya' ? ' Hay que pedirlo YA (tarda ' + LEAD + ' d\u00edas en llegar).' : ' Pedirlo antes del ' + pi.f + '.') : '';
+    if (nv === 'rojo' || nv === 'naranja') {
+      add(nv, NIV[nv].ic, nombreX + (nv === 'rojo' ? ' se est\u00e1 acabando' : ' est\u00e1 bajo'),
+        'Quedan ' + fmt(x.exist) + ' kg y se usan ' + fmt(x.diario, 1) + ' kg por d\u00eda. Se acabar\u00eda aprox. el ' + sumarDias(hoy, x.dias) + '.' + txtPedir, fmt(x.dias, 1) + ' d\u00edas');
+    } else if (pi && pi.k === 'ya') {
+      add('naranja', '\ud83d\uded2', 'Hay que pedir ya: ' + (x.esCol ? x.nombre : (x.desc || x.nombre)),
+        'Le quedan ' + fmt(x.dias, 1) + ' d\u00edas y el material tarda ' + LEAD + ' d\u00edas en llegar. Se acabar\u00eda aprox. el ' + sumarDias(hoy, x.dias) + '.', fmt(x.dias, 1) + ' d\u00edas');
+    }
+  });
+  var sinMap = {};
+  O.forEach(function (o) { if (String(o[9]).indexOf('sin mapear') !== -1) { var k = limpiarColor(o[8]); sinMap[k] = (sinMap[k] || 0) + 1; } });
+  Object.keys(sinMap).forEach(function (k) { add('amarillo', '\ud83c\udfa8', 'Color sin c\u00f3digo: ' + k, sinMap[k] + ' orden(es) con este color no cuentan en el inventario de colorantes. Agr\u00e9galo en la pesta\u00f1a Colores.', sinMap[k] + ' \u00f3rd.'); });
+  var receta = O.filter(function (o) { return String(o[13]).toLowerCase().indexOf('definir receta') !== -1; });
+  if (receta.length) add('amarillo', '\ud83c\udf73', '\u00d3rdenes con receta por definir', receta.length + ' orden(es) usan una mezcla que no est\u00e1 en Recetas de Material: ' + esc(receta.map(function (o) { return o[5]; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' \u00b7 ')), receta.length + ' \u00f3rd.');
+  var revisar = O.filter(function (o) { return String(o[11]).indexOf('revisar') !== -1 || String(o[12]).indexOf('revisar') !== -1; });
+  if (revisar.length) add('amarillo', '\u270f\ufe0f', '\u00d3rdenes con datos a revisar', revisar.length + ' orden(es) tienen cantidad o peso mal escrito en Seguimiento.', revisar.length + ' \u00f3rd.');
+  mats.forEach(function (m) { if (interno[m.nombre.toUpperCase()]) return; if (m.exist === null) add('info', '\ud83d\udce6', 'Material sin inventario: ' + m.desc, 'Se us\u00f3 en ' + m.n + ' rengl\u00f3n(es) pero no aparece en la pesta\u00f1a Inv.', ''); });
+  var amar = mpReal.concat(cols).filter(function (x) { return nivel(x.dias) === 'amarillo'; }).length;
+  if (amar) add('info', '\ud83d\udfe1', amar + ' producto(s) con 15 a 30 d\u00edas', 'No es urgente, pero conviene ir pidiendo. M\u00edralos en las pesta\u00f1as de Materia prima y Colorantes.', '');
+  alertas.sort(function (a, b) { return orden[a.niv] - orden[b.niv]; });
+
+  var criticos = cMP.rojo + cCOL.rojo;
+  var est = $('estado');
+  if (criticos > 0) { est.className = 'estado bad'; est.textContent = '\ud83d\udd34 ' + criticos + (criticos === 1 ? ' producto cr\u00edtico' : ' productos cr\u00edticos'); }
+  else if (cMP.naranja + cCOL.naranja > 0) { est.className = 'estado warn'; est.textContent = '\ud83d\udfe0 ' + (cMP.naranja + cCOL.naranja) + ' con inventario bajo'; }
+  else { est.className = 'estado ok'; est.textContent = '\ud83d\udfe2 Inventario en buen nivel'; }
+  var setBadge = function (id, n, w) { var b = $(id); if (!n) { b.style.display = 'none'; return; } b.textContent = n; if (w) b.className = 'badge w'; };
+  setBadge('bmp', cMP.rojo || cMP.naranja, !cMP.rojo);
+  setBadge('bcol', cCOL.rojo || cCOL.naranja, !cCOL.rojo);
+  setBadge('bal', alertas.filter(function (a) { return a.niv !== 'info'; }).length, criticos === 0);
+
+  var kpis = [['\u00d3RDENES', fmt(O.length), '', 'en el periodo', COLORES.cyan], ['D\u00cdAS', fmt(fechas.length), '', 'con producci\u00f3n', COLORES.purple], ['PRODUCTOS', fmt(Object.keys(prods).length), '', 'distintos', COLORES.pink],
+    ['MATERIA PRIMA', fmt(kgMP), 'kg', 'de las \u00f3rdenes', COLORES.orange], ['COLORANTE', fmt(kgCol), 'kg', 'de las \u00f3rdenes', COLORES.green], ['M\u00c1QUINAS', fmt(nMaq), '', 'trabajando', COLORES.navy]];
+  $('kpis').innerHTML = kpis.map(function (k) { return '<div class="kpi" style="background:' + k[4] + '"><div class="l">' + k[0] + '</div><div class="v">' + k[1] + (k[2] ? '<span class="u">' + k[2] + '</span>' : '') + '</div><div class="s">' + k[3] + '</div></div>'; }).join('');
+
+  var semres = function (c) { return ['rojo', 'naranja', 'amarillo', 'verde', 'gris'].map(function (k) { return '<div class="n-' + k + '"><b>' + c[k] + '</b><span>' + NIV[k].ic + ' ' + NIV[k].t + '</span></div>'; }).join(''); };
+  $('semMP').innerHTML = semres(cMP);
+  $('semCOL').innerHTML = semres(cCOL);
+
+  var alHtml = function (a) { return '<div class="al ' + a.niv + '"><div class="ic">' + a.ic + '</div><div><b>' + esc(a.t) + '</b><span>' + a.d + '</span></div>' + (a.der ? '<div class="der">' + esc(a.der) + '</div>' : '') + '</div>'; };
+  var urg = alertas.filter(function (a) { return a.niv === 'rojo' || a.niv === 'naranja'; }).slice(0, 6);
+  $('urgentes').innerHTML = urg.length ? urg.map(alHtml).join('') : '<div class="al ok"><div class="ic">\ud83d\udfe2</div><div><b>Nada urgente</b><span>Todo lo que se usa tiene 15 d\u00edas o m\u00e1s de inventario.</span></div></div>';
+  $('listaAl').innerHTML = alertas.length ? alertas.map(alHtml).join('') : '<div class="al ok"><div class="ic">\ud83d\udfe2</div><div><b>Sin alertas</b><span>Todo est\u00e1 en orden.</span></div></div>';
+
+  var chartDia = function (id) {
+    var el = $(id), vals = fechas.map(function (f) { return dias[f]; });
+    if (!vals.length) { el.innerHTML = '<div class="vacio">Sin \u00f3rdenes.</div>'; return; }
+    var W = 760, H = 260, pl = 50, pr = 8, pt = 22, pb = 30, iw = W - pl - pr, ih = H - pt - pb;
+    var mx = Math.max.apply(null, vals), paso = Math.pow(10, Math.floor(Math.log(mx || 1) / Math.LN10)), tope = Math.ceil((mx || 1) / paso) * paso, bw = iw / vals.length;
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '">';
+    for (var g = 0; g <= 4; g++) { var y = pt + ih - ih * g / 4; s += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y + '" y2="' + y + '"/><text x="' + (pl - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + fmt(tope * g / 4) + '</text>'; }
+    vals.forEach(function (v, i) {
+      var h = ih * v / tope, x = pl + i * bw + bw * .18, w = bw * .64, y = pt + ih - h;
+      s += '<rect rx="4" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="#FF7A1A"><title>' + fcorta(fechas[i]) + ': ' + fmt(v) + ' kg</title></rect>';
+      if (vals.length <= 18) s += '<text class="vl" x="' + (x + w / 2) + '" y="' + (y - 5) + '" text-anchor="middle">' + fmt(v) + '</text>';
+      s += '<text x="' + (x + w / 2) + '" y="' + (H - 9) + '" text-anchor="middle">' + fcorta(fechas[i]) + '</text>';
+    });
+    el.innerHTML = s + '</svg>';
+  };
+  chartDia('chDia1'); chartDia('chDia2');
+
+  var barras = function (id, filas, unidad, colorFn, dec) {
+    var el = $(id); if (!filas.length) { el.innerHTML = '<div class="vacio">Sin datos.</div>'; return; }
+    var mx = Math.max.apply(null, filas.map(function (f) { return f[1]; })) || 1;
+    el.innerHTML = filas.map(function (f, i) {
+      var c = colorFn(f, i);
+      return '<div class="br"><div class="t" title="' + esc(f[0]) + '">' + (f[2] ? '<i class="sw" style="background:' + c + '"></i>' : '') + esc(f[0]) + (f[3] ? ' <span style="color:var(--muted)">' + esc(f[3]) + '</span>' : '') + '</div><div class="v">' + fmt(f[1], dec) + ' ' + unidad + '</div><div class="tr"><i style="width:' + (100 * f[1] / mx).toFixed(1) + '%;background:' + c + '"></i></div></div>';
+    }).join('');
+  };
+  var top = function (obj, n) { return Object.keys(obj).map(function (k) { return [k, obj[k]]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, n); };
+  barras('bProd', top(prod, 10), 'pzs', function () { return COLORES.cyan; }, 0);
+  barras('bMaq', Object.keys(maq).map(function (k) { return [k, maq[k].kg, false, '(' + maq[k].n + ' \u00f3rd.)']; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 12), 'kg', function () { return COLORES.purple; }, 0);
+  barras('bMat', mats.slice().sort(function (a, b) { return b.kg - a.kg; }).slice(0, 12).map(function (m) { return [m.nombre, m.kg, false, m.familia ? '\u00b7 ' + m.familia : '']; }), 'kg', function () { return COLORES.orange; }, 0);
+  barras('bCol', cols.slice().sort(function (a, b) { return b.kg - a.kg; }).slice(0, 12).map(function (c) { return [c.nombre, c.kg, true]; }), 'kg', function (f) { return hexColor(f[0]); }, 1);
+
+  var leyenda = ['rojo', 'naranja', 'amarillo', 'verde', 'gris'].map(function (k) { return '<span><i style="background:' + NIV[k].c + '"></i>' + NIV[k].t + ': ' + NIV[k].s + '</span>'; }).join('');
+  $('ley1').innerHTML = leyenda; $('ley2').innerHTML = leyenda;
+
+  var tarjeta = function (x, esCol) {
+    var nv = nivel(x.dias), N = NIV[nv], d = num(x.dias);
+    var luz = '<div class="luz"><i class="r' + (nv === 'rojo' || nv === 'naranja' ? ' on' : '') + '"></i><i class="a' + (nv === 'amarillo' ? ' on' : '') + '"></i><i class="v' + (nv === 'verde' ? ' on' : '') + '"></i></div>';
+    var titulo = esCol ? '<i class="sw" style="background:' + hexColor(x.nombre) + '"></i>' + esc(x.nombre) : esc(x.nombre);
+    var desc = esCol ? (x.codigo && x.codigo.indexOf('sin') === -1 ? 'C\u00f3digo ' + esc(x.codigo) : 'Sin c\u00f3digo en Colores') : esc(x.desc) + (x.familia ? ' \u00b7 ' + esc(x.familia) : '');
+    var diasTxt = d === null ? (x.exist === null ? 'Sin inventario' : 'Sin consumo') : fmt(d, 1) + ' <small>d\u00edas</small>';
+    var meta = '<span>Hay <b>' + (x.exist === null ? esc(x.existTxt || '\u2013') : fmt(x.exist) + ' kg') + '</b></span><span>Uso diario <b>' + fmt(x.diario, 1) + ' kg</b></span>';
+    if (d !== null) meta += '<span>Se acaba aprox. <b>' + sumarDias(hoy, d) + '</b></span>';
+    var pi = pedirInfo(d);
+    var pedirHtml = pi ? '<div class="pedir ' + pi.k + '">' + pi.t + '</div>' : '';
+    var pct = d === null ? 0 : Math.min(100, d / 60 * 100);
+    return '<div class="sem ' + nv + '">' + luz + '<div class="info"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div class="nom">' + titulo + '</div><span class="etq" style="background:' + N.c + ';color:#fff">' + N.t + '</span></div><div class="desc">' + desc + '</div><div class="dias">' + diasTxt + '</div><div class="meta">' + meta + '</div>' + pedirHtml + '<div class="barra"><i style="width:' + pct + '%;background:' + N.c + '"></i></div></div></div>';
+  };
+  var ordenDias = function (a, b) { var da = num(a.dias), db = num(b.dias); return (da === null ? 1e9 : da) - (db === null ? 1e9 : db); };
+  var filtroSem = function (contId, gridId, lista, esCol) {
+    var actual = '';
+    var cont = $(contId);
+    cont.innerHTML = '<input type="search" placeholder="Buscar...">' + ['', 'rojo', 'naranja', 'amarillo', 'verde', 'gris'].map(function (k) { return '<button class="chip' + (k === '' ? ' on' : '') + '" data-n="' + k + '" type="button">' + (k ? NIV[k].ic + ' ' + NIV[k].t : 'Todos') + '</button>'; }).join('');
+    var input = cont.querySelector('input');
+    var pintar = function () {
+      var q = input.value.trim().toUpperCase();
+      var l = lista.filter(function (x) { return (!actual || nivel(x.dias) === actual) && (!q || (x.nombre + ' ' + (x.desc || '') + ' ' + (x.codigo || '')).toUpperCase().indexOf(q) !== -1); }).sort(ordenDias);
+      $(gridId).innerHTML = l.length ? l.map(function (x) { return tarjeta(x, esCol); }).join('') : '<div class="vacio">No hay nada en este nivel.</div>';
+    };
+    Array.prototype.forEach.call(cont.querySelectorAll('.chip'), function (b) { b.addEventListener('click', function () { Array.prototype.forEach.call(cont.querySelectorAll('.chip'), function (x) { x.classList.remove('on'); }); b.classList.add('on'); actual = b.getAttribute('data-n'); pintar(); }); });
+    input.addEventListener('input', pintar);
+    pintar();
+  };
+  filtroSem('fmp', 'gridMP', mpReal, false);
+  filtroSem('fcol', 'gridCOL', cols, true);
+
+  fechas.slice().reverse().forEach(function (f) { var o = document.createElement('option'); o.value = f; o.textContent = flarga(f); $('sFecha').appendChild(o); });
+  Object.keys(maq).sort(function (a, b) { return Number(a.replace(/\D/g, '')) - Number(b.replace(/\D/g, '')); }).forEach(function (m) { var o = document.createElement('option'); o.value = m.replace('M\u00e1q. ', ''); o.textContent = m; $('sMaq').appendChild(o); });
+  var soloProb = false;
+  var problema = function (o) { return String(o[9]).indexOf('sin mapear') !== -1 || String(o[13]).toLowerCase().indexOf('definir') !== -1 || String(o[12]).indexOf('revisar') !== -1; };
+  var pintarOrd = function () {
+    var q = $('qOrd').value.trim().toUpperCase(), f = $('sFecha').value, m = $('sMaq').value;
+    var l = O.filter(function (o) { return (!f || o[0] === f) && (!m || String(o[2]) === m) && (!soloProb || problema(o)) && (!q || [o[3], o[4], o[5], o[6], o[8], o[9]].join(' ').toUpperCase().indexOf(q) !== -1); });
+    var tk = l.reduce(function (s, o) { return s + (num(o[11]) || 0); }, 0);
+    $('ordHint').textContent = 'Mostrando ' + l.length + ' de ' + O.length + ' renglones  \u00b7  ' + fmt(tk) + ' kg de material.';
+    $('tOrd').innerHTML = '<thead><tr><th>Fecha</th><th class="n">OP</th><th class="n">M\u00e1q.</th><th>Producto</th><th class="hide-m">Componente</th><th class="hide-m">Material</th><th>Color</th><th class="n">Cantidad</th><th class="n">Kg material</th><th class="n hide-m">Kg colorante</th></tr></thead><tbody>' +
+      l.map(function (o) {
+        var sm = String(o[9]).indexOf('sin mapear') !== -1, sr = String(o[13]).toLowerCase().indexOf('definir') !== -1;
+        return '<tr><td>' + fcorta(o[0]) + '</td><td class="n">' + esc(o[1]) + '</td><td class="n">' + esc(o[2]) + '</td><td>' + esc(o[4]) + '</td><td class="hide-m">' + esc(o[6]) + '</td><td class="hide-m">' + esc(o[5]) + (sr ? ' <span class="mark">\u00b7 sin receta</span>' : '') + '</td><td><i class="sw" style="background:' + hexColor(limpiarColor(o[8])) + '"></i>' + esc(limpiarColor(o[8])) + (sm ? ' <span class="mark">\u00b7 sin c\u00f3digo</span>' : '') + '</td><td class="n">' + fmt(o[7]) + '</td><td class="n">' + fmt(o[11], 1) + '</td><td class="n hide-m">' + fmt(o[10], 2) + '</td></tr>';
+      }).join('') + '</tbody>';
+  };
+  ['qOrd', 'sFecha', 'sMaq'].forEach(function (id) { $(id).addEventListener('input', pintarOrd); $(id).addEventListener('change', pintarOrd); });
+  $('cProb').addEventListener('click', function () { soloProb = !soloProb; this.classList.toggle('on', soloProb); pintarOrd(); });
+  pintarOrd();
+
+  var inv = [], tipo = 'Materia prima';
+  (D.inv || []).forEach(function (r) {
+    var c = String(r[0] || '');
+    if (String(r[1]).indexOf('COLORANTES') !== -1 || c.indexOf('COLORANTES') !== -1) tipo = 'Colorante';
+    if (/^\d\d-\d\d-\d{4}$/.test(c)) inv.push({ cod: c, nom: String(r[1]), int: r[2], ex: num(r[3]), tipo: tipo });
+  });
+  var usoMP = {}; mats.forEach(function (m) { usoMP[m.nombre.toUpperCase()] = m; });
+  var tInv = '';
+  var pintarInv = function () {
+    var q = $('qInv').value.trim().toUpperCase();
+    var l = inv.filter(function (x) { return (!tInv || x.tipo === tInv) && (!q || (x.cod + ' ' + x.nom + ' ' + x.int).toUpperCase().indexOf(q) !== -1); });
+    var tot = l.reduce(function (s, x) { return s + (x.ex || 0); }, 0);
+    $('tInv').innerHTML = '<thead><tr><th>C\u00f3digo</th><th>Nombre</th><th class="hide-m">Tipo</th><th class="hide-m">C\u00f3digo interno</th><th class="n">Existencia</th><th>Uso en el periodo</th></tr></thead><tbody>' +
+      l.map(function (x) {
+        var u = x.int ? usoMP[String(x.int).toUpperCase()] : null, uso = u ? '<span class="etq" style="background:' + NIV[nivel(u.dias)].c + ';color:#fff">' + fmt(u.dias, 1) + ' d\u00edas</span>' : '<span style="color:var(--muted)">' + (x.tipo === 'Colorante' ? 'ver Colorantes' : 'no se us\u00f3') + '</span>';
+        return '<tr><td>' + esc(x.cod) + '</td><td>' + (x.tipo === 'Colorante' ? '<i class="sw" style="background:' + hexColor(x.nom) + '"></i>' : '') + esc(x.nom) + '</td><td class="hide-m">' + x.tipo + '</td><td class="hide-m">' + esc(x.int || '') + '</td><td class="n">' + fmt(x.ex) + ' kg</td><td>' + uso + '</td></tr>';
+      }).join('') + '<tr><td></td><td><b>Total (' + l.length + ' productos)</b></td><td class="hide-m"></td><td class="hide-m"></td><td class="n"><b>' + fmt(tot) + ' kg</b></td><td></td></tr></tbody>';
+  };
+  $('qInv').addEventListener('input', pintarInv);
+  Array.prototype.forEach.call(document.querySelectorAll('#p-inv .chip'), function (b) { b.addEventListener('click', function () { Array.prototype.forEach.call(document.querySelectorAll('#p-inv .chip'), function (x) { x.classList.remove('on'); }); b.classList.add('on'); tInv = b.getAttribute('data-t'); pintarInv(); }); });
+  pintarInv();
+
+  Array.prototype.forEach.call(document.querySelectorAll('.leadIn'), function (inp) {
+    inp.value = LEAD;
+    inp.addEventListener('change', function () { var v = Number(inp.value); if (!(v >= 0 && v <= 120)) return; try { localStorage.setItem('manaplasLead', String(v)); } catch (e) {} var p = (document.querySelector('.tab.on') || {}).getAttribute ? document.querySelector('.tab.on').getAttribute('data-p') : ''; try { sessionStorage.setItem('manaplasTab', p); } catch (e) {} location.reload(); });
+  });
+  var abrir = function (p) {
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.classList.toggle('on', t.getAttribute('data-p') === p); });
+    Array.prototype.forEach.call(document.querySelectorAll('.panel'), function (s) { s.classList.toggle('on', s.id === 'p-' + p); });
+    window.scrollTo(0, 0);
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.addEventListener('click', function () { abrir(t.getAttribute('data-p')); }); });
+  try { var tg = sessionStorage.getItem('manaplasTab'); if (tg) { sessionStorage.removeItem('manaplasTab'); abrir(tg); } } catch (e) {}
+})();
+</script>
+</body>
+</html>
