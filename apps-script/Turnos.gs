@@ -55,8 +55,8 @@ const COLOR = {
 };
 
 // ======================= CUADRÍCULA =======================
-// Columna A = margen. El plano usa "unidades" de 19 px desde la columna B (84 unidades de ancho).
-const ANCHO_UNIDAD = 19;
+// Columna A = margen. El plano usa "unidades" de 21 px desde la columna B (84 unidades de ancho).
+const ANCHO_UNIDAD = 21;
 const COL0 = 2;
 const U = u => COL0 + u - 1;        // zona principal: unidades 1..71 (la tabla usa 1..84)
 const D = u => U(73) + u;           // zona derecha (Soplado y 125–143): unidades 1..11
@@ -382,10 +382,10 @@ function construirHojaTurno_(sh) {
   sh.setColumnWidth(1, 16);
   sh.setColumnWidths(COL0, ULTIMA_COL - COL0, ANCHO_UNIDAD);
   sh.setColumnWidth(ULTIMA_COL, 16);
-  const alto = { 1: 36, 2: 28, 3: 24, 4: 24, 5: 26, 6: 34, 7: 8, 8: 34, 9: 34, 10: 34, 11: 34, 12: 14, 13: 26,
+  const alto = { 1: 36, 2: 28, 3: 24, 4: 24, 5: 26, 6: 38, 7: 8, 8: 38, 9: 38, 10: 38, 11: 38, 12: 14, 13: 26,
     33: 10, 34: 10, 35: 10, 36: 10, [FILA_TABLA_TITULO]: 28, [FILA_ACCIONES]: 32, [FILA_TABLA_CAB]: 34,
     [FILA_TABLA_FIN + 1]: 10, [FILA_AYUDA]: 36 };
-  for (let f = 14; f <= 32; f++) alto[f] = 28;
+  for (let f = 14; f <= 32; f++) alto[f] = 30;
   Object.keys(alto).forEach(f => sh.setRowHeight(Number(f), alto[f]));
   sh.setRowHeights(FILA_TABLA_INI, ORDEN_TABLA.length, 26);
   sh.getRange(1, 1, FILAS_HOJA, ULTIMA_COL).setFontFamily('Roboto').setFontSize(10)
@@ -447,7 +447,7 @@ function construirHojaTurno_(sh) {
 
   const nums = ms.map(m => caja_(sh, m.num.fila, m.num.col, m.num.alto, m.num.ancho));
   sh.getRangeList(nums.map(r => r.getA1Notation())).setNumberFormat('@')
-    .setFontFamily('Roboto Mono').setFontWeight('bold').setFontSize(12);
+    .setFontFamily('Roboto Mono').setFontWeight('bold').setFontSize(14);
   const anchas = [], angostas = [], bajas = [];
   ms.forEach((m, i) => {
     const ancha = m.num.ancho >= 4;
@@ -459,11 +459,11 @@ function construirHojaTurno_(sh) {
   });
   sh.getRangeList(anchas).setHorizontalAlignment('left').setVerticalAlignment('middle');
   sh.getRangeList(angostas).setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRangeList(bajas).setHorizontalAlignment('center').setVerticalAlignment('middle').setFontSize(11);
+  sh.getRangeList(bajas).setHorizontalAlignment('center').setVerticalAlignment('middle').setFontSize(13);
 
   const chks = ms.map(m => caja_(sh, m.chk.fila, m.chk.col, 1, m.chk.ancho).getA1Notation());
   sh.getRangeList(chks).insertCheckboxes().setHorizontalAlignment('center').setVerticalAlignment('middle')
-    .setFontSize(12);
+    .setFontSize(14);
 
   // Colores del plano con formato condicional (se ven al instante al marcar una casilla).
   // Prioridad: alerta de molde > activa > sin planificar (fondo base).
