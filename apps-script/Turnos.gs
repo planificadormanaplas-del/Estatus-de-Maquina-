@@ -67,16 +67,20 @@ const COL_125 = U(45);              // columnas de las máquinas 125–134 y 135
 const S = u => U(51) + u;           // zona Soplado: unidades 1..6
 const ULTIMA_COL = U(N_UNIDADES) + 1; // columna de margen derecho
 const ANCHO_TOTAL = N_UNIDADES;
-const FILA_PLANO_INI = 6, FILA_PLANO_FIN = 25;
-const ALTO_FILA_PLANO = 27;
+// Las máquinas van en "franjas" de 3 filas: número, casilla y un separador fino, así el espacio
+// entre filas de máquinas es siempre el mismo. Hay 10 franjas (filas 6–35).
+const FILA_PLANO_INI = 6;
+const franja_ = k => FILA_PLANO_INI + 3 * k;
+const FILA_PLANO_FIN = franja_(9) + 1;
+const ALTO_FILA_PLANO = 24, ALTO_SEPARADOR = 8;
 
 const CELDA = {
   fechaSel: [2, U(4)], activas: [2, U(36)], horas: [3, U(28)], todas: [3, U(33)],
   grupos: [[4, U(33)], [4, U(38)], [4, U(43)]],
   // Celdas auxiliares en la columna A (texto invisible)
-  alertas: [26, 1],     // máquinas con alerta de molde: "|203|215|"
-  pendiente: [27, 1],   // TRUE si hay cambios sin enviar
-  fechaCargada: [28, 1], // fecha cuyos datos muestra la hoja
+  alertas: [FILA_PLANO_FIN + 2, 1],     // máquinas con alerta de molde: "|203|215|"
+  pendiente: [FILA_PLANO_FIN + 3, 1],   // TRUE si hay cambios sin enviar
+  fechaCargada: [FILA_PLANO_FIN + 4, 1], // fecha cuyos datos muestra la hoja
 };
 const ANCHO_FECHA = 5;
 
@@ -101,17 +105,18 @@ function maquinas_() {
   };
   const q = (id, fila, col) => add(id, fila, col, 2, 3);
   // Bloque 201–218: 201 encima de la 202, 202–214 en fila y 218–215 en columna a la derecha
-  q(201, 6, U(1));
-  for (let j = 0; j < 13; j++) q(202 + j, 8, U(3 * j + 1));
-  q(218, 6, U(41)); q(217, 8, U(41)); q(216, 10, U(41)); q(215, 12, U(41));
+  q(201, franja_(0), U(1));
+  for (let j = 0; j < 13; j++) q(202 + j, franja_(1), U(3 * j + 1));
+  q(218, franja_(0), U(41)); q(217, franja_(1), U(41)); q(216, franja_(2), U(41)); q(215, franja_(3), U(41));
   // Bloque 101–124 en dos filas: 101–112 y 113–124
-  for (let i = 0; i < 24; i++) q(101 + i, 15 + 2 * Math.floor(i / 12), U(3 * (i % 12) + 1));
+  // (la franja 2 queda para el título «MÁQUINAS 101–124»)
+  for (let i = 0; i < 24; i++) q(101 + i, franja_(3 + Math.floor(i / 12)), U(3 * (i % 12) + 1));
   // Bloque 125–143 en dos columnas: 125–134 y 135–143
-  for (let k = 0; k < 19; k++) q(125 + k, 6 + 2 * (k % 10), COL_125 + 3 * Math.floor(k / 10));
+  for (let k = 0; k < 19; k++) q(125 + k, franja_(k % 10), COL_125 + 3 * Math.floor(k / 10));
   // Soplado
-  q(306, 6, S(4));
-  q(302, 8, S(1)); q(305, 8, S(4));
-  q(301, 10, S(1)); q(304, 10, S(4));
+  q(306, franja_(0), S(4));
+  q(302, franja_(1), S(1)); q(305, franja_(1), S(4));
+  q(301, franja_(2), S(1)); q(304, franja_(2), S(4));
   return m;
 }
 
@@ -125,7 +130,8 @@ function casilla_(sh, m) {
 
 // ======================= TABLA DE PRODUCCIÓN =======================
 // Una fila fija por máquina, en orden de número. Solo se muestran las filas de las máquinas activas.
-const FILA_TABLA_TITULO = 29, FILA_ACCIONES = 30, FILA_TABLA_CAB = 31, FILA_TABLA_INI = 32;
+const FILA_TABLA_TITULO = FILA_PLANO_FIN + 5, FILA_ACCIONES = FILA_TABLA_TITULO + 1,
+  FILA_TABLA_CAB = FILA_TABLA_TITULO + 2, FILA_TABLA_INI = FILA_TABLA_TITULO + 3;
 const ORDEN_TABLA = maquinas_().map(m => m.id).sort((a, b) => a - b);
 const FILA_TABLA_FIN = FILA_TABLA_INI + ORDEN_TABLA.length - 1;
 const FILA_AYUDA = FILA_TABLA_FIN + 2;
@@ -385,9 +391,12 @@ function construirHojaTurno_(sh) {
   sh.setColumnWidth(1, 16);
   sh.setColumnWidths(COL0, ULTIMA_COL - COL0, ANCHO_UNIDAD);
   sh.setColumnWidth(ULTIMA_COL, 16);
-  const alto = { 1: 34, 2: 28, 3: 24, 4: 24, 5: 24, 26: 6, 27: 6, 28: 6,
+  const alto = { 1: 34, 2: 28, 3: 24, 4: 24, 5: 24, [FILA_PLANO_FIN + 1]: 8,
+    [CELDA.alertas[0]]: 6, [CELDA.pendiente[0]]: 6, [CELDA.fechaCargada[0]]: 6,
     [FILA_TABLA_TITULO]: 28, [FILA_ACCIONES]: 32, [FILA_TABLA_CAB]: 34, [FILA_TABLA_FIN + 1]: 10, [FILA_AYUDA]: 36 };
-  for (let f = FILA_PLANO_INI; f <= FILA_PLANO_FIN; f++) alto[f] = ALTO_FILA_PLANO;
+  for (let f = FILA_PLANO_INI; f <= FILA_PLANO_FIN; f++) {
+    alto[f] = (f - FILA_PLANO_INI) % 3 === 2 ? ALTO_SEPARADOR : ALTO_FILA_PLANO;
+  }
   Object.keys(alto).forEach(f => sh.setRowHeight(Number(f), alto[f]));
   sh.setRowHeights(FILA_TABLA_INI, ORDEN_TABLA.length, 26);
   sh.getRange(1, 1, FILAS_HOJA, ULTIMA_COL).setFontFamily('Roboto').setFontSize(10)
@@ -437,10 +446,10 @@ function construirHojaTurno_(sh) {
 
   // ---- Plano ----
   seccion_(caja_(sh, 5, U(1), 1, 20), 'MÁQUINAS 201–218');
-  seccion_(caja_(sh, 14, U(1), 1, 20), 'MÁQUINAS 101–124');
+  seccion_(caja_(sh, franja_(2) + 1, U(1), 1, 20), 'MÁQUINAS 101–124');
   seccion_(caja_(sh, 5, COL_125, 1, 6), 'MÁQUINAS 125–143');
   seccion_(caja_(sh, 5, S(1), 1, 6), ' SOPLADO');
-  sh.getRange(5, S(1), 7, 6).setBorder(true, true, true, true, null, null, '#7a8594', SB.DASHED);
+  sh.getRange(5, S(1), franja_(2) + 2 - 5, 6).setBorder(true, true, true, true, null, null, '#7a8594', SB.DASHED);
 
   const ms = maquinas_();
   const bloques = ms.map(m => sh.getRange(m.fila, m.col, m.alto, m.ancho));
