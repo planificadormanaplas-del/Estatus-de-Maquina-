@@ -55,24 +55,28 @@ const COLOR = {
 };
 
 // ======================= CUADRÍCULA =======================
-// Columna A = margen. El plano usa "unidades" de 21 px desde la columna B (84 unidades de ancho).
-const ANCHO_UNIDAD = 21;
+// Columna A = margen. El plano usa "unidades" de 25 px desde la columna B (69 unidades de ancho):
+//   1–50  Líneas 2 (201–218) y 1 (101–124) · 52–59  Máquinas 125–143 · 61–69  Soplado
+// Todo el plano (filas 1–24) cabe en una pantalla Full HD sin desplazarse.
+const ANCHO_UNIDAD = 25;
 const COL0 = 2;
-const U = u => COL0 + u - 1;        // zona principal: unidades 1..71 (la tabla usa 1..84)
-const D = u => U(73) + u;           // zona derecha (Soplado y 125–143): unidades 1..11
-const ULTIMA_COL = D(11) + 1;       // columna de margen derecho
-const ANCHO_TOTAL = D(11) - COL0 + 1;
-const FILA_PLANO_INI = 6, FILA_PLANO_FIN = 32;
-const FILA_PLANO_PRINCIPAL_FIN = 17; // última fila del plano en la zona principal (101–124)
+const N_UNIDADES = 69;
+const U = u => COL0 + u - 1;
+const COL_125 = U(52);              // columna de las máquinas 125–143
+const S = u => U(60) + u;           // zona Soplado: unidades 1..9
+const ULTIMA_COL = U(N_UNIDADES) + 1; // columna de margen derecho
+const ANCHO_TOTAL = N_UNIDADES;
+const FILA_PLANO_INI = 6, FILA_PLANO_FIN = 24;
 
 const CELDA = {
-  fechaSel: [2, U(5)], activas: [2, U(63)], horas: [3, U(44)], todas: [3, U(51)],
-  grupos: [[4, U(51)], [4, U(58)], [4, U(65)]],
+  fechaSel: [2, U(5)], activas: [2, U(46)], horas: [3, U(32)], todas: [3, U(41)],
+  grupos: [[4, U(41)], [4, U(47)], [4, U(53)]],
   // Celdas auxiliares en la columna A (texto invisible)
-  alertas: [33, 1],     // máquinas con alerta de molde: "|203|215|"
-  pendiente: [34, 1],   // TRUE si hay cambios sin enviar
-  fechaCargada: [35, 1], // fecha cuyos datos muestra la hoja
+  alertas: [25, 1],     // máquinas con alerta de molde: "|203|215|"
+  pendiente: [26, 1],   // TRUE si hay cambios sin enviar
+  fechaCargada: [27, 1], // fecha cuyos datos muestra la hoja
 };
+const ANCHO_FECHA = 6;
 
 /**
  * Distribución de las máquinas según la hoja resumen de asignación de personal.
@@ -96,19 +100,19 @@ function maquinas_() {
   };
   // Bloque 201–218
   add(201, 6, U(1), 1, 11);
-  for (let j = 0; j < 13; j++) add(202 + j, 8, U(4 * j + 1), 4, 3);   // 202–214
-  add(218, 6, U(62), 1, 10);
-  add(217, 8, U(69), 2, 3);
-  add(216, 10, U(62), 1, 10);
-  add(215, 11, U(62), 1, 8);
+  for (let j = 0; j < 13; j++) add(202 + j, 7, U(3 * j + 1), 5, 3);   // 202–214
+  add(218, 6, U(41), 1, 10);
+  add(217, 7, U(48), 3, 3);
+  add(216, 10, U(41), 1, 10);
+  add(215, 11, U(41), 1, 8);
   // Soplado
-  add(306, 6, D(7), 1, 4);
-  add(302, 8, D(2), 1, 4); add(305, 8, D(7), 1, 4);
-  add(301, 10, D(2), 1, 4); add(304, 10, D(7), 1, 4);
+  add(306, 6, S(6), 1, 4);
+  add(302, 7, S(1), 1, 4); add(305, 7, S(6), 1, 4);
+  add(301, 8, S(1), 1, 4); add(304, 8, S(6), 1, 4);
   // Bloque 101–124
-  for (let i = 0; i < 24; i++) add(101 + i, 14, U(3 * i + 1), 4, 2);
+  for (let i = 0; i < 24; i++) add(101 + i, 14, U(2 * i + 1), 5, 2);
   // Bloque 125–143
-  for (let k = 0; k < 19; k++) add(125 + k, 14 + k, D(1), 1, 11);
+  for (let k = 0; k < 19; k++) add(125 + k, 6 + k, COL_125, 1, 8);
   return m;
 }
 
@@ -122,28 +126,28 @@ function casilla_(sh, m) {
 
 // ======================= TABLA DE PRODUCCIÓN =======================
 // Una fila fija por máquina, en orden de número. Solo se muestran las filas de las máquinas activas.
-const FILA_TABLA_TITULO = 37, FILA_ACCIONES = 38, FILA_TABLA_CAB = 39, FILA_TABLA_INI = 40;
+const FILA_TABLA_TITULO = 28, FILA_ACCIONES = 29, FILA_TABLA_CAB = 30, FILA_TABLA_INI = 31;
 const ORDEN_TABLA = maquinas_().map(m => m.id).sort((a, b) => a - b);
 const FILA_TABLA_FIN = FILA_TABLA_INI + ORDEN_TABLA.length - 1;
 const FILA_AYUDA = FILA_TABLA_FIN + 2;
 const FILAS_HOJA = FILA_AYUDA + 1;
 
-const ACCION = { enviar: [FILA_ACCIONES, U(1)], descartar: [FILA_ACCIONES, U(16)], estado: [FILA_ACCIONES, U(28)] };
+const ACCION = { enviar: [FILA_ACCIONES, U(1)], descartar: [FILA_ACCIONES, U(14)], estado: [FILA_ACCIONES, U(24)] };
 
-// k = campo de Planificación; ancho en unidades (deben sumar 84).
+// k = campo de Planificación; ancho en unidades (deben sumar N_UNIDADES = 69).
 const CAMPOS_TABLA = [
   { k: 'maquina',    titulo: 'MÁQ.',              ancho: 3 },
   { k: 'ton',        titulo: 'Ton',               ancho: 3,  entrada: true, formato: '0',     numero: true },
-  { k: 'op',         titulo: 'OP',                ancho: 6,  entrada: true, formato: '@' },
-  { k: 'producto',   titulo: 'PRODUCTO',          ancho: 16, entrada: true, formato: '@' },
-  { k: 'referencia', titulo: 'REFERENCIA',        ancho: 9,  entrada: true, formato: '@' },
-  { k: 'color',      titulo: 'COLOR',             ancho: 6,  entrada: true, formato: '@' },
-  { k: 'material',   titulo: 'MATERIAL',          ancho: 7,  entrada: true, formato: '@' },
-  { k: 'cicloIdeal', titulo: 'CICLO IDEAL (s)',   ancho: 5,  entrada: true, formato: '0.0',   numero: true },
-  { k: 'cicloReal',  titulo: 'CICLO REAL (s)',    ancho: 5,  entrada: true, formato: '0.0',   numero: true },
-  { k: 'cavidades',  titulo: 'CAVIDADES',         ancho: 5,  entrada: true, formato: '0',     numero: true },
-  { k: 'contIni',    titulo: 'CONTADOR INICIAL',  ancho: 7,  entrada: true, formato: '#,##0', numero: true },
-  { k: 'contFin',    titulo: 'CONTADOR FINAL',    ancho: 7,  entrada: true, formato: '#,##0', numero: true },
+  { k: 'op',         titulo: 'OP',                ancho: 5,  entrada: true, formato: '@' },
+  { k: 'producto',   titulo: 'PRODUCTO',          ancho: 13, entrada: true, formato: '@' },
+  { k: 'referencia', titulo: 'REFERENCIA',        ancho: 7,  entrada: true, formato: '@' },
+  { k: 'color',      titulo: 'COLOR',             ancho: 5,  entrada: true, formato: '@' },
+  { k: 'material',   titulo: 'MATERIAL',          ancho: 6,  entrada: true, formato: '@' },
+  { k: 'cicloIdeal', titulo: 'CICLO IDEAL (s)',   ancho: 4,  entrada: true, formato: '0.0',   numero: true },
+  { k: 'cicloReal',  titulo: 'CICLO REAL (s)',    ancho: 4,  entrada: true, formato: '0.0',   numero: true },
+  { k: 'cavidades',  titulo: 'CAVIDADES',         ancho: 4,  entrada: true, formato: '0',     numero: true },
+  { k: 'contIni',    titulo: 'CONTADOR INICIAL',  ancho: 5,  entrada: true, formato: '#,##0', numero: true },
+  { k: 'contFin',    titulo: 'CONTADOR FINAL',    ancho: 5,  entrada: true, formato: '#,##0', numero: true },
   { k: 'operarios',  titulo: 'N° OPERARIOS',      ancho: 5,  entrada: true, formato: '0',     numero: true },
 ];
 (function () {
@@ -382,63 +386,62 @@ function construirHojaTurno_(sh) {
   sh.setColumnWidth(1, 16);
   sh.setColumnWidths(COL0, ULTIMA_COL - COL0, ANCHO_UNIDAD);
   sh.setColumnWidth(ULTIMA_COL, 16);
-  const alto = { 1: 36, 2: 28, 3: 24, 4: 24, 5: 26, 6: 38, 7: 8, 8: 38, 9: 38, 10: 38, 11: 38, 12: 14, 13: 26,
-    33: 10, 34: 10, 35: 10, 36: 10, [FILA_TABLA_TITULO]: 28, [FILA_ACCIONES]: 32, [FILA_TABLA_CAB]: 34,
-    [FILA_TABLA_FIN + 1]: 10, [FILA_AYUDA]: 36 };
-  for (let f = 14; f <= 32; f++) alto[f] = 30;
+  const alto = { 1: 34, 2: 28, 3: 24, 4: 24, 5: 24, 25: 6, 26: 6, 27: 6,
+    [FILA_TABLA_TITULO]: 28, [FILA_ACCIONES]: 32, [FILA_TABLA_CAB]: 34, [FILA_TABLA_FIN + 1]: 10, [FILA_AYUDA]: 36 };
+  for (let f = FILA_PLANO_INI; f <= FILA_PLANO_FIN; f++) alto[f] = 27;
   Object.keys(alto).forEach(f => sh.setRowHeight(Number(f), alto[f]));
   sh.setRowHeights(FILA_TABLA_INI, ORDEN_TABLA.length, 26);
   sh.getRange(1, 1, FILAS_HOJA, ULTIMA_COL).setFontFamily('Roboto').setFontSize(10)
     .setFontColor(COLOR.texto).setVerticalAlignment('middle').setBackground('#ffffff');
 
   // ---- Encabezado ----
-  caja_(sh, 1, U(1), 1, 71).setFontSize(16).setFontWeight('bold');
-  caja_(sh, 1, D(1), 4, 11).setFontSize(10).setFontWeight('bold').setHorizontalAlignment('center').setWrap(true)
+  caja_(sh, 1, U(1), 1, 58).setFontSize(16).setFontWeight('bold');
+  caja_(sh, 1, U(60), 4, 10).setFontSize(10).setFontWeight('bold').setHorizontalAlignment('center').setWrap(true)
     .setBorder(true, true, true, true, null, null, COLOR.borde, SB.SOLID);
 
   etiqueta_(caja_(sh, 2, U(1), 1, 4), 'FECHA');
-  const sel = caja_(sh, 2, U(5), 1, 8);
+  const sel = caja_(sh, CELDA.fechaSel[0], CELDA.fechaSel[1], 1, ANCHO_FECHA);
   sel.setNumberFormat('dd/mm/yyyy').setHorizontalAlignment('center').setFontWeight('bold').setFontSize(12)
     .setBackground(COLOR.entrada).setBorder(true, true, true, true, null, null, '#c9a227', SB.SOLID_MEDIUM)
     .setDataValidation(SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(false)
       .setHelpText('Fecha a ver o planificar (doble clic abre el calendario).').build());
   const hoy = new Date();
   sel.setValue(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()));
-  etiqueta_(caja_(sh, 2, U(14), 1, 5), 'HORARIO');
-  caja_(sh, 2, U(19), 1, 12).setFontWeight('bold').setFontSize(11);
-  etiqueta_(caja_(sh, 2, U(32), 1, 5), 'DESCANSO');
-  caja_(sh, 2, U(37), 1, 17).setFontSize(11);
-  etiqueta_(caja_(sh, 2, U(55), 1, 8), 'MÁQ. ACTIVAS');
-  const activas = caja_(sh, 2, U(63), 1, 9).setFontWeight('bold').setFontSize(12).setFontColor('#b26a00');
+  etiqueta_(caja_(sh, 2, U(11), 1, 4), 'HORARIO');
+  caja_(sh, 2, U(15), 1, 9).setFontWeight('bold').setFontSize(11);
+  etiqueta_(caja_(sh, 2, U(24), 1, 4), 'DESCANSO');
+  caja_(sh, 2, U(28), 1, 13).setFontSize(11);
+  etiqueta_(caja_(sh, 2, U(41), 1, 5), 'MÁQ. ACTIVAS');
+  const activas = caja_(sh, CELDA.activas[0], CELDA.activas[1], 1, 5).setFontWeight('bold').setFontSize(12).setFontColor('#b26a00');
 
   // Leyenda
-  [[U(1), COLOR.activa, 'Activa (trabaja)'], [U(12), COLOR.inactiva, 'Sin planificar'],
-   [U(23), COLOR.alerta, 'Alerta de molde']].forEach(([c, col, txt]) => {
+  [[U(1), COLOR.activa, 'Activa (trabaja)'], [U(9), COLOR.inactiva, 'Sin planificar'],
+   [U(17), COLOR.alerta, 'Alerta de molde']].forEach(([c, col, txt]) => {
     sh.getRange(3, c).setBackground(col).setBorder(true, true, true, true, null, null, COLOR.borde, SB.SOLID);
-    caja_(sh, 3, c + 1, 1, 9).setValue(txt).setFontSize(9).setFontColor(COLOR.etiqueta);
+    caja_(sh, 3, c + 1, 1, 7).setValue(txt).setFontSize(9).setFontColor(COLOR.etiqueta);
   });
 
   // Horas efectivas del turno
-  etiqueta_(caja_(sh, 3, U(34), 1, 10), 'HORAS EFECTIVAS');
-  caja_(sh, CELDA.horas[0], CELDA.horas[1], 1, 5).setNumberFormat('0.0 "h"').setFontWeight('bold')
+  etiqueta_(caja_(sh, 3, U(25), 1, 7), 'HORAS EFECTIVAS');
+  caja_(sh, CELDA.horas[0], CELDA.horas[1], 1, 4).setNumberFormat('0.0 "h"').setFontWeight('bold')
     .setHorizontalAlignment('left');
 
   // Selección rápida: todas y por línea
   sh.getRange(CELDA.todas[0], CELDA.todas[1]).insertCheckboxes().setHorizontalAlignment('center');
-  caja_(sh, CELDA.todas[0], CELDA.todas[1] + 1, 1, 20).setValue('Marcar / desmarcar todas')
+  caja_(sh, CELDA.todas[0], CELDA.todas[1] + 1, 1, 17).setValue('Marcar / desmarcar todas')
     .setFontSize(10).setFontWeight('bold');
   GRUPOS.forEach((g, i) => {
     const [f, c] = CELDA.grupos[i];
     sh.getRange(f, c).insertCheckboxes().setHorizontalAlignment('center');
-    caja_(sh, f, c + 1, 1, 6).setValue(`${g.nombre} (${g.desde}–${g.hasta})`).setFontSize(9).setFontWeight('bold');
+    caja_(sh, f, c + 1, 1, 5).setValue(`${g.nombre} (${g.desde}–${g.hasta})`).setFontSize(9).setFontWeight('bold');
   });
 
   // ---- Plano ----
   seccion_(caja_(sh, 5, U(1), 1, 20), 'MÁQUINAS 201–218');
   seccion_(caja_(sh, 13, U(1), 1, 20), 'MÁQUINAS 101–124');
-  seccion_(caja_(sh, 13, D(1), 1, 11), 'MÁQUINAS 125–143');
-  seccion_(caja_(sh, 5, D(1), 1, 11), ' SOPLADO');
-  sh.getRange(5, D(1), 7, 11).setBorder(true, true, true, true, null, null, '#7a8594', SB.DASHED);
+  seccion_(caja_(sh, 5, COL_125, 1, 8), 'MÁQUINAS 125–143');
+  seccion_(caja_(sh, 5, S(1), 1, 9), ' SOPLADO');
+  sh.getRange(5, S(1), 4, 9).setBorder(true, true, true, true, null, null, '#7a8594', SB.DASHED);
 
   const ms = maquinas_();
   const bloques = ms.map(m => sh.getRange(m.fila, m.col, m.alto, m.ancho));
@@ -480,9 +483,8 @@ function construirHojaTurno_(sh) {
   });
 
   // Contador de máquinas activas (cuenta las casillas marcadas del plano)
-  const zonaPrincipal = sh.getRange(FILA_PLANO_INI, U(1), FILA_PLANO_PRINCIPAL_FIN - FILA_PLANO_INI + 1, 71).getA1Notation();
-  const zonaDerecha = sh.getRange(FILA_PLANO_INI, D(1), FILA_PLANO_FIN - FILA_PLANO_INI + 1, 11).getA1Notation();
-  const cuenta = `(COUNTIF(${zonaPrincipal},TRUE)+COUNTIF(${zonaDerecha},TRUE))`;
+  const plano = sh.getRange(FILA_PLANO_INI, U(1), FILA_PLANO_FIN - FILA_PLANO_INI + 1, N_UNIDADES).getA1Notation();
+  const cuenta = `COUNTIF(${plano},TRUE)`;
   sh.getRange(CELDA.activas[0], CELDA.activas[1]).setFormula(fx_(`=${cuenta}&" / ${META_MAQUINAS}"`));
   activas.setHorizontalAlignment('left');
   reglas.push(regla().whenFormulaSatisfied(fx_(`=${cuenta}>${META_MAQUINAS}`))
@@ -505,11 +507,11 @@ function construirHojaTurno_(sh) {
   // Botones: enviar a Planificación, descartar cambios y estado
   sh.getRange(ACCION.enviar[0], ACCION.enviar[1]).insertCheckboxes().setHorizontalAlignment('center')
     .setBackground(COLOR.enviar).setFontColor('#ffffff').setFontSize(12);
-  caja_(sh, FILA_ACCIONES, ACCION.enviar[1] + 1, 1, 12).setValue('ENVIAR A PLANIFICACIÓN')
+  caja_(sh, FILA_ACCIONES, ACCION.enviar[1] + 1, 1, 11).setValue('ENVIAR A PLANIFICACIÓN')
     .setBackground(COLOR.enviar).setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
   sh.getRange(ACCION.descartar[0], ACCION.descartar[1]).insertCheckboxes().setHorizontalAlignment('center')
     .setFontSize(12);
-  caja_(sh, FILA_ACCIONES, ACCION.descartar[1] + 1, 1, 10).setValue('Descartar cambios')
+  caja_(sh, FILA_ACCIONES, ACCION.descartar[1] + 1, 1, 8).setValue('Descartar cambios')
     .setFontWeight('bold').setFontColor('#b3261e');
   caja_(sh, ACCION.estado[0], ACCION.estado[1], 1, ANCHO_TOTAL - ACCION.estado[1] + COL0)
     .setFontStyle('italic').setFontColor(COLOR.etiqueta);
@@ -563,10 +565,10 @@ function construirHojaTurno_(sh) {
 function ajustarTurno_(sh, t) {
   const T = TURNOS[t];
   sh.getRange(1, U(1)).setValue(`MANAPLAS · PLANIFICACIÓN DE PRODUCCIÓN · ${T.hoja.toUpperCase()}${T.cambioMolde ? ' (STANDARD)' : ''}`);
-  sh.getRange(2, U(19)).setValue(T.horario);
-  sh.getRange(2, U(37)).setValue(T.descanso);
+  sh.getRange(2, U(15)).setValue(T.horario);
+  sh.getRange(2, U(28)).setValue(T.descanso);
   sh.getRange(CELDA.horas[0], CELDA.horas[1]).setValue(T.horas);
-  sh.getRange(1, D(1))
+  sh.getRange(1, U(60))
     .setValue(T.cambioMolde ? 'TURNO STANDARD\nCambio de molde permitido' : 'SOLO PRODUCCIÓN\nNo se cambian moldes')
     .setBackground(T.cambioMolde ? '#dcebfb' : '#fde9d6');
   sh.setTabColor(T.color);
@@ -577,7 +579,7 @@ function proteger_(sh) {
   sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => p.remove());
   const p = sh.protect().setDescription('Plano y tabla (solo advertencia)').setWarningOnly(true);
   p.setUnprotectedRanges([
-    sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1], 1, 8),
+    sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1], 1, ANCHO_FECHA),
     sh.getRange(CELDA.todas[0], CELDA.todas[1]),
     sh.getRange(ACCION.enviar[0], ACCION.enviar[1]),
     sh.getRange(ACCION.descartar[0], ACCION.descartar[1]),
