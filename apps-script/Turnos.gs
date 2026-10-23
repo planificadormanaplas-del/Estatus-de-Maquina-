@@ -12,13 +12,14 @@
  * Hojas que crea:
  *   Turno 1 · Turno 2 · Turno 3 · Turno 4  → plano de máquinas + tabla de producción
  *   Planificación                           → base de datos (una fila por fecha/turno/máquina)
- *   Listas (oculta)                         → listado de máquinas para validaciones
+ *   Listas (oculta)                         → máquinas y su tonelaje
  *
  * Uso:
- *   · Casilla de cada máquina    → la marca como activa (trabaja ese turno). Se pinta al instante.
- *   · «Marcar / desmarcar todas» → marca o desmarca todas las máquinas del turno.
- *   · Tabla de producción        → una fila por máquina activa, en orden de número. Lo que se
- *                                  escribe en la tabla se guarda solo en Planificación.
+ *   · Casilla de cada máquina        → la marca como activa y muestra su fila en la tabla.
+ *   · «Marcar / desmarcar todas»     → todas las máquinas. «Línea 1/2/3» → solo esa línea.
+ *   · Tabla de producción            → una fila por máquina activa, en orden de número.
+ *   · «Enviar a Planificación»       → guarda la selección y la tabla en la hoja Planificación.
+ *   · «Descartar cambios»            → vuelve a lo último enviado para esa fecha y turno.
  */
 
 // ======================= CONFIGURACIÓN =======================
@@ -33,31 +34,44 @@ const TURNOS = {
   4: { hoja: 'Turno 4', horario: '7:00 AM – 4:00 PM',  descanso: '1 h de 12:00 PM a 1:00 PM',    horas: 8,   inicioMin: 420,  cambioMolde: true,  color: '#1f6fd1' },
 };
 
-// Columnas de la hoja Planificación (A:M)
-const COLS_PLAN = ['Fecha', 'Turno', 'Máquina', 'Producto', 'Referencia', 'Ciclo ideal (s)', 'Ciclo real (s)',
-  'Contador inicial', 'Contador final', 'Cavidades', 'Color', 'Material', 'N° operarios'];
-const IDX = { fecha: 0, turno: 1, maquina: 2, producto: 3, referencia: 4, cicloIdeal: 5, cicloReal: 6,
-  contIni: 7, contFin: 8, cavidades: 9, color: 10, material: 11, operarios: 12 };
+// Columnas de la hoja Planificación (A:O). P y Q son fórmulas (Golpes y Piezas).
+const COLS_PLAN = ['Fecha', 'Turno', 'Máquina', 'Ton', 'OP', 'Producto', 'Referencia', 'Ciclo ideal (s)',
+  'Ciclo real (s)', 'Contador inicial', 'Contador final', 'Cavidades', 'Color', 'Material', 'N° operarios'];
+const IDX = { fecha: 0, turno: 1, maquina: 2, ton: 3, op: 4, producto: 5, referencia: 6, cicloIdeal: 7,
+  cicloReal: 8, contIni: 9, contFin: 10, cavidades: 11, color: 12, material: 13, operarios: 14 };
+const N_PLAN = COLS_PLAN.length;
+
+// Grupos de selección rápida
+const GRUPOS = [
+  { nombre: 'Línea 1', desde: 101, hasta: 143 },
+  { nombre: 'Línea 2', desde: 201, hasta: 218 },
+  { nombre: 'Línea 3', desde: 301, hasta: 306 },
+];
 
 const COLOR = {
   inactiva: '#eef1f5', activa: '#b9e4c1', alerta: '#ffc98a',
   borde: '#1f2a37', texto: '#1f2a37', etiqueta: '#5b6676',
-  cabecera: '#1f2a37', entrada: '#fff8dc', fijo: '#f1f3f6', lineaTabla: '#d0d5dd',
+  cabecera: '#1f2a37', entrada: '#fff8dc', fijo: '#f1f3f6', lineaTabla: '#d0d5dd', enviar: '#1f6fd1',
 };
 
 // ======================= CUADRÍCULA =======================
-// Columna A = margen. El plano usa "unidades" de 12 px desde la columna B.
-const ANCHO_UNIDAD = 12;
+// Columna A = margen. El plano usa "unidades" de 19 px desde la columna B (84 unidades de ancho).
+const ANCHO_UNIDAD = 19;
 const COL0 = 2;
-const U = u => COL0 + u - 1;        // zona principal: unidades 1..71
+const U = u => COL0 + u - 1;        // zona principal: unidades 1..71 (la tabla usa 1..84)
 const D = u => U(73) + u;           // zona derecha (Soplado y 125–143): unidades 1..11
 const ULTIMA_COL = D(11) + 1;       // columna de margen derecho
+const ANCHO_TOTAL = D(11) - COL0 + 1;
 const FILA_PLANO_INI = 6, FILA_PLANO_FIN = 32;
 const FILA_PLANO_PRINCIPAL_FIN = 17; // última fila del plano en la zona principal (101–124)
 
 const CELDA = {
-  fechaSel: [2, U(5)], activas: [2, U(63)], horas: [3, U(44)], todas: [3, U(55)],
-  alertas: [33, 1],   // celda auxiliar (texto invisible) con las máquinas en alerta: "|203|215|"
+  fechaSel: [2, U(5)], activas: [2, U(63)], horas: [3, U(44)], todas: [3, U(51)],
+  grupos: [[4, U(51)], [4, U(58)], [4, U(65)]],
+  // Celdas auxiliares en la columna A (texto invisible)
+  alertas: [33, 1],     // máquinas con alerta de molde: "|203|215|"
+  pendiente: [34, 1],   // TRUE si hay cambios sin enviar
+  fechaCargada: [35, 1], // fecha cuyos datos muestra la hoja
 };
 
 /**
@@ -105,36 +119,32 @@ function dentro_(r, f, c) {
 function casilla_(sh, m) {
   return sh.getRange(m.chk.fila, m.chk.col);
 }
-function casillasA1_(sh) {
-  return maquinas_().map(m => casilla_(sh, m).getA1Notation());
-}
 
 // ======================= TABLA DE PRODUCCIÓN =======================
 // Una fila fija por máquina, en orden de número. Solo se muestran las filas de las máquinas activas.
-const FILA_TABLA_TITULO = 35, FILA_TABLA_CAB = 36, FILA_TABLA_INI = 37;
+const FILA_TABLA_TITULO = 37, FILA_ACCIONES = 38, FILA_TABLA_CAB = 39, FILA_TABLA_INI = 40;
 const ORDEN_TABLA = maquinas_().map(m => m.id).sort((a, b) => a - b);
 const FILA_TABLA_FIN = FILA_TABLA_INI + ORDEN_TABLA.length - 1;
 const FILA_AYUDA = FILA_TABLA_FIN + 2;
 const FILAS_HOJA = FILA_AYUDA + 1;
 
-// k = campo de Planificación (entrada) o indicador calculado; ancho en unidades de 12 px.
+const ACCION = { enviar: [FILA_ACCIONES, U(1)], descartar: [FILA_ACCIONES, U(16)], estado: [FILA_ACCIONES, U(28)] };
+
+// k = campo de Planificación; ancho en unidades (deben sumar 84).
 const CAMPOS_TABLA = [
-  { k: 'maquina',      titulo: 'MÁQ.',               ancho: 3 },
-  { k: 'producto',     titulo: 'PRODUCTO',           ancho: 12, entrada: true, formato: '@' },
-  { k: 'referencia',   titulo: 'REFERENCIA',         ancho: 7,  entrada: true, formato: '@' },
-  { k: 'color',        titulo: 'COLOR',              ancho: 5,  entrada: true, formato: '@' },
-  { k: 'material',     titulo: 'MATERIAL',           ancho: 6,  entrada: true, formato: '@' },
-  { k: 'cicloIdeal',   titulo: 'CICLO IDEAL (s)',    ancho: 4,  entrada: true, formato: '0.0',   numero: true },
-  { k: 'cicloReal',    titulo: 'CICLO REAL (s)',     ancho: 4,  entrada: true, formato: '0.0',   numero: true },
-  { k: 'cavidades',    titulo: 'CAVI- DADES',        ancho: 4,  entrada: true, formato: '0',     numero: true },
-  { k: 'contIni',      titulo: 'CONTADOR INICIAL',   ancho: 6,  entrada: true, formato: '#,##0', numero: true },
-  { k: 'contFin',      titulo: 'CONTADOR FINAL',     ancho: 6,  entrada: true, formato: '#,##0', numero: true },
-  { k: 'operarios',    titulo: 'N° OPERA- RIOS',     ancho: 4,  entrada: true, formato: '0',     numero: true },
-  { k: 'golpes',       titulo: 'GOLPES',             ancho: 5,  formato: '#,##0' },
-  { k: 'piezas',       titulo: 'PIEZAS PRODUCIDAS',  ancho: 5,  formato: '#,##0' },
-  { k: 'teorica',      titulo: 'PROD. TEÓRICA',      ancho: 5,  formato: '#,##0' },
-  { k: 'eficiencia',   titulo: 'EFICIEN- CIA CICLO', ancho: 4,  formato: '0.0%' },
-  { k: 'cumplimiento', titulo: 'CUMPLI- MIENTO',     ancho: 4,  formato: '0.0%' },
+  { k: 'maquina',    titulo: 'MÁQ.',              ancho: 3 },
+  { k: 'ton',        titulo: 'Ton',               ancho: 3,  entrada: true, formato: '0',     numero: true },
+  { k: 'op',         titulo: 'OP',                ancho: 6,  entrada: true, formato: '@' },
+  { k: 'producto',   titulo: 'PRODUCTO',          ancho: 16, entrada: true, formato: '@' },
+  { k: 'referencia', titulo: 'REFERENCIA',        ancho: 9,  entrada: true, formato: '@' },
+  { k: 'color',      titulo: 'COLOR',             ancho: 6,  entrada: true, formato: '@' },
+  { k: 'material',   titulo: 'MATERIAL',          ancho: 7,  entrada: true, formato: '@' },
+  { k: 'cicloIdeal', titulo: 'CICLO IDEAL (s)',   ancho: 5,  entrada: true, formato: '0.0',   numero: true },
+  { k: 'cicloReal',  titulo: 'CICLO REAL (s)',    ancho: 5,  entrada: true, formato: '0.0',   numero: true },
+  { k: 'cavidades',  titulo: 'CAVIDADES',         ancho: 5,  entrada: true, formato: '0',     numero: true },
+  { k: 'contIni',    titulo: 'CONTADOR INICIAL',  ancho: 7,  entrada: true, formato: '#,##0', numero: true },
+  { k: 'contFin',    titulo: 'CONTADOR FINAL',    ancho: 7,  entrada: true, formato: '#,##0', numero: true },
+  { k: 'operarios',  titulo: 'N° OPERARIOS',      ancho: 5,  entrada: true, formato: '0',     numero: true },
 ];
 (function () {
   let c = COL0;
@@ -145,7 +155,6 @@ CAMPOS_TABLA.forEach(x => CAMPO[x.k] = x);
 const ENTRADAS = CAMPOS_TABLA.filter(x => x.entrada);
 const COL_ENTRADA_INI = ENTRADAS[0].col;
 const COL_ENTRADA_FIN = ENTRADAS[ENTRADAS.length - 1].col + ENTRADAS[ENTRADAS.length - 1].ancho - 1;
-const ANCHO_TABLA = CAMPOS_TABLA.reduce((s, x) => s + x.ancho, 0);
 
 function filaTabla_(id) {
   return FILA_TABLA_INI + ORDEN_TABLA.indexOf(Number(id));
@@ -173,7 +182,7 @@ function onEdit(e) {
     return;
   }
   try {
-    // Cambios hechos directamente en Planificación → sincroniza planos y tablas
+    // Cambios hechos directamente en Planificación → actualiza las hojas sin cambios pendientes
     if (nombre === HOJA_PLAN) {
       if (rg.getRow() === 1 && rg.getNumRows() === 1) return;
       actualizarTodo_();
@@ -181,22 +190,31 @@ function onEdit(e) {
     }
 
     const f = rg.getRow(), c = rg.getColumn();
-    if (f === CELDA.fechaSel[0] && c === CELDA.fechaSel[1]) {
-      const datos = leerPlan_();
-      pintarPlano_(sh, t, datos);
-      cargarCasillas_(sh, t, datos);
-      cargarTabla_(sh, t, datos);
-    } else if (f === CELDA.todas[0] && c === CELDA.todas[1]) {
-      const lista = sh.getRangeList(casillasA1_(sh));
-      if (rg.getValue() === true) lista.check();
-      else lista.uncheck();
-      sincronizarCasillas_(sh, t);
+    const es = celda => f === celda[0] && c === celda[1];
+    if (es(CELDA.fechaSel)) {
+      cambiarFecha_(sh, t);
+    } else if (es(ACCION.enviar)) {
+      if (rg.getValue() === true) { rg.setValue(false); enviar_(sh, t); }
+    } else if (es(ACCION.descartar)) {
+      if (rg.getValue() === true) {
+        rg.setValue(false);
+        cargar_(sh, t, leerPlan_());
+        SpreadsheetApp.getActive().toast('Se volvió a lo último enviado a Planificación.', 'Cambios descartados', 4);
+      }
+    } else if (es(CELDA.todas) || CELDA.grupos.some(es)) {
+      const g = es(CELDA.todas) ? null : GRUPOS[CELDA.grupos.findIndex(es)];
+      const celdas = maquinas_().filter(m => !g || (m.id >= g.desde && m.id <= g.hasta))
+        .map(m => casilla_(sh, m).getA1Notation());
+      if (rg.getValue() === true) sh.getRangeList(celdas).check();
+      else sh.getRangeList(celdas).uncheck();
+      aplicarSeleccion_(sh, t);
+      marcarPendiente_(sh);
     } else if (maquinas_().some(m => dentro_(m.chk, f, c))) {
-      sincronizarCasillas_(sh, t);
+      aplicarSeleccion_(sh, t);
+      marcarPendiente_(sh);
     } else if (f <= FILA_TABLA_FIN && f + rg.getNumRows() - 1 >= FILA_TABLA_INI &&
                c <= COL_ENTRADA_FIN && c + rg.getNumColumns() - 1 >= COL_ENTRADA_INI) {
-      const f0 = Math.max(f, FILA_TABLA_INI), f1 = Math.min(f + rg.getNumRows() - 1, FILA_TABLA_FIN);
-      guardarFilas_(sh, t, f0, f1 - f0 + 1);
+      marcarPendiente_(sh);
     }
   } finally {
     lock.releaseLock();
@@ -262,50 +280,72 @@ function configurarArchivo() {
   ss.toast('Listo. Recarga la página (F5).', 'Turnos configurados', 8);
 }
 
+/** Listas: máquina y tonelaje. Conserva los tonelajes ya cargados. */
 function prepararListas_(ss) {
   let sh = ss.getSheetByName(HOJA_LISTAS);
   if (!sh) sh = ss.insertSheet(HOJA_LISTAS);
+  const ton = tonelajes_();
   sh.clear();
-  sh.getRange(1, 1).setValue('Máquinas');
-  sh.getRange(2, 1, ORDEN_TABLA.length, 1).setValues(ORDEN_TABLA.map(x => [x]));
+  sh.getRange(1, 1, 1, 2).setValues([['Máquinas', 'Ton']]).setFontWeight('bold');
+  sh.getRange(2, 1, ORDEN_TABLA.length, 2).setValues(ORDEN_TABLA.map(id => [id, ton[id] === undefined ? '' : ton[id]]));
   sh.hideSheet();
+}
+
+/** Tonelaje por máquina según Listas (columna B). */
+function tonelajes_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(HOJA_LISTAS);
+  const out = {};
+  if (!sh || sh.getLastRow() < 2) return out;
+  sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(([id, ton]) => {
+    if (id !== '' && ton !== '' && ton !== null) out[Number(id)] = ton;
+  });
+  return out;
 }
 
 function prepararPlan_(ss) {
   let sh = ss.getSheetByName(HOJA_PLAN);
   if (!sh) sh = ss.insertSheet(HOJA_PLAN);
   const SB = SpreadsheetApp.BorderStyle;
-  if (sh.getMaxColumns() < 15) sh.insertColumnsAfter(sh.getMaxColumns(), 15 - sh.getMaxColumns());
 
-  sh.getRange(1, 1, 1, 13).setValues([COLS_PLAN]);
-  sh.getRange(1, 14).setFormula(fx_('={"Golpes";ARRAYFORMULA(IF((H2:H<>"")*(I2:I<>""),I2:I-H2:H,""))}'));
-  sh.getRange(1, 15).setFormula(fx_('={"Piezas";ARRAYFORMULA(IF((N2:N<>"")*(J2:J<>""),N2:N*J2:J,""))}'));
-  sh.getRange(1, 1, 1, 15).setFontWeight('bold').setFontColor('#ffffff').setBackground(COLOR.cabecera)
+  // Versión anterior (sin Ton ni OP): se insertan las dos columnas después de Máquina sin perder datos
+  if (sh.getRange(1, 3).getValue() === 'Máquina' && sh.getRange(1, 4).getValue() === 'Producto') {
+    sh.insertColumnsAfter(3, 2);
+  }
+  if (sh.getMaxColumns() < N_PLAN + 2) sh.insertColumnsAfter(sh.getMaxColumns(), N_PLAN + 2 - sh.getMaxColumns());
+
+  sh.getRange(1, 1, 1, N_PLAN).setValues([COLS_PLAN]);
+  sh.getRange(1, N_PLAN + 1).setFormula(fx_('={"Golpes";ARRAYFORMULA(IF((J2:J<>"")*(K2:K<>""),K2:K-J2:J,""))}'));
+  sh.getRange(1, N_PLAN + 2).setFormula(fx_('={"Piezas";ARRAYFORMULA(IF((P2:P<>"")*(L2:L<>""),P2:P*L2:L,""))}'));
+  sh.getRange(1, 1, 1, N_PLAN + 2).setFontWeight('bold').setFontColor('#ffffff').setBackground(COLOR.cabecera)
     .setWrap(true).setVerticalAlignment('middle').setHorizontalAlignment('center')
     .setBorder(true, true, true, true, true, true, '#ffffff', SB.SOLID);
-  sh.getRange(1, 14, 1, 2).setBackground('#5b6676');
+  sh.getRange(1, N_PLAN + 1, 1, 2).setBackground('#5b6676');
   sh.setFrozenRows(1);
   sh.setRowHeight(1, 36);
 
   const n = sh.getMaxRows() - 1;
+  const col = k => IDX[k] + 1;
   const dv = SpreadsheetApp.newDataValidation;
-  sh.getRange(2, 1, n, 1).setNumberFormat('dd/mm/yyyy')
+  sh.getRange(2, 1, n, N_PLAN).setDataValidation(null);
+  sh.getRange(2, col('fecha'), n, 1).setNumberFormat('dd/mm/yyyy')
     .setDataValidation(dv().requireDate().setAllowInvalid(false).build());
-  sh.getRange(2, 2, n, 1).setHorizontalAlignment('center')
+  sh.getRange(2, col('turno'), n, 1).setHorizontalAlignment('center')
     .setDataValidation(dv().requireValueInList(['1', '2', '3', '4'], true).setAllowInvalid(false).build());
-  sh.getRange(2, 3, n, 1).setHorizontalAlignment('center')
+  sh.getRange(2, col('maquina'), n, 1).setHorizontalAlignment('center').setNumberFormat('0')
     .setDataValidation(dv().requireValueInRange(ss.getSheetByName(HOJA_LISTAS).getRange('A2:A200'), true)
       .setAllowInvalid(false).build());
-  sh.getRange(2, 5, n, 1).setNumberFormat('@');
-  sh.getRange(2, 6, n, 2).setNumberFormat('0.0');
-  sh.getRange(2, 8, n, 2).setNumberFormat('#,##0');
-  sh.getRange(2, 10, n, 1).setNumberFormat('0');
-  sh.getRange(2, 13, n, 1).setNumberFormat('0');
-  sh.getRange(2, 14, n, 2).setNumberFormat('#,##0').setBackground('#f1f3f6');
+  ['op', 'producto', 'referencia', 'color', 'material'].forEach(k => sh.getRange(2, col(k), n, 1).setNumberFormat('@'));
+  sh.getRange(2, col('ton'), n, 1).setNumberFormat('0').setHorizontalAlignment('center');
+  sh.getRange(2, col('cicloIdeal'), n, 2).setNumberFormat('0.0');
+  sh.getRange(2, col('contIni'), n, 2).setNumberFormat('#,##0');
+  sh.getRange(2, col('cavidades'), n, 1).setNumberFormat('0');
+  sh.getRange(2, col('operarios'), n, 1).setNumberFormat('0');
+  sh.getRange(2, N_PLAN + 1, n, 2).setNumberFormat('#,##0').setBackground('#f1f3f6');
   const num = dv().requireNumberGreaterThanOrEqualTo(0).setAllowInvalid(false).setHelpText('Solo números (≥ 0).').build();
-  [6, 7, 8, 9, 10, 13].forEach(c => sh.getRange(2, c, n, 1).setDataValidation(num));
+  ['ton', 'cicloIdeal', 'cicloReal', 'contIni', 'contFin', 'cavidades', 'operarios']
+    .forEach(k => sh.getRange(2, col(k), n, 1).setDataValidation(num));
 
-  const anchos = [90, 55, 70, 220, 120, 80, 80, 100, 100, 75, 100, 120, 80, 85, 90];
+  const anchos = [90, 55, 70, 60, 100, 220, 120, 80, 80, 100, 100, 75, 100, 120, 80, 85, 90];
   anchos.forEach((w, i) => sh.setColumnWidth(i + 1, w));
   sh.setTabColor('#5b6676');
 }
@@ -324,10 +364,10 @@ function caja_(sh, fila, col, alto, ancho) {
   return r;
 }
 function etiqueta_(r, txt) {
-  return r.setValue(txt).setFontSize(8).setFontWeight('bold').setFontColor(COLOR.etiqueta);
+  return r.setValue(txt).setFontSize(9).setFontWeight('bold').setFontColor(COLOR.etiqueta);
 }
 function seccion_(r, txt) {
-  return r.setValue(txt).setFontSize(9).setFontWeight('bold').setFontColor(COLOR.texto);
+  return r.setValue(txt).setFontSize(10).setFontWeight('bold').setFontColor(COLOR.texto);
 }
 
 function construirHojaTurno_(sh) {
@@ -342,50 +382,56 @@ function construirHojaTurno_(sh) {
   sh.setColumnWidth(1, 16);
   sh.setColumnWidths(COL0, ULTIMA_COL - COL0, ANCHO_UNIDAD);
   sh.setColumnWidth(ULTIMA_COL, 16);
-  const alto = { 1: 28, 2: 22, 3: 20, 4: 6, 5: 18, 6: 22, 7: 6, 8: 22, 9: 22, 10: 22, 11: 22, 12: 8, 13: 18,
-    33: 8, 34: 8, [FILA_TABLA_TITULO]: 24, [FILA_TABLA_CAB]: 30, [FILA_TABLA_FIN + 1]: 8, [FILA_AYUDA]: 30 };
-  for (let f = 14; f <= 32; f++) alto[f] = 19;
+  const alto = { 1: 36, 2: 28, 3: 24, 4: 24, 5: 26, 6: 34, 7: 8, 8: 34, 9: 34, 10: 34, 11: 34, 12: 14, 13: 26,
+    33: 10, 34: 10, 35: 10, 36: 10, [FILA_TABLA_TITULO]: 28, [FILA_ACCIONES]: 32, [FILA_TABLA_CAB]: 34,
+    [FILA_TABLA_FIN + 1]: 10, [FILA_AYUDA]: 36 };
+  for (let f = 14; f <= 32; f++) alto[f] = 28;
   Object.keys(alto).forEach(f => sh.setRowHeight(Number(f), alto[f]));
-  sh.setRowHeights(FILA_TABLA_INI, ORDEN_TABLA.length, 21);
-  sh.getRange(1, 1, FILAS_HOJA, ULTIMA_COL).setFontFamily('Roboto').setFontSize(9)
+  sh.setRowHeights(FILA_TABLA_INI, ORDEN_TABLA.length, 26);
+  sh.getRange(1, 1, FILAS_HOJA, ULTIMA_COL).setFontFamily('Roboto').setFontSize(10)
     .setFontColor(COLOR.texto).setVerticalAlignment('middle').setBackground('#ffffff');
 
   // ---- Encabezado ----
-  caja_(sh, 1, U(1), 1, 71).setFontSize(13).setFontWeight('bold');
-  caja_(sh, 1, D(1), 3, 11).setFontSize(8).setFontWeight('bold').setHorizontalAlignment('center').setWrap(true)
+  caja_(sh, 1, U(1), 1, 71).setFontSize(16).setFontWeight('bold');
+  caja_(sh, 1, D(1), 4, 11).setFontSize(10).setFontWeight('bold').setHorizontalAlignment('center').setWrap(true)
     .setBorder(true, true, true, true, null, null, COLOR.borde, SB.SOLID);
 
   etiqueta_(caja_(sh, 2, U(1), 1, 4), 'FECHA');
   const sel = caja_(sh, 2, U(5), 1, 8);
-  sel.setNumberFormat('dd/mm/yyyy').setHorizontalAlignment('center').setFontWeight('bold').setFontSize(10)
+  sel.setNumberFormat('dd/mm/yyyy').setHorizontalAlignment('center').setFontWeight('bold').setFontSize(12)
     .setBackground(COLOR.entrada).setBorder(true, true, true, true, null, null, '#c9a227', SB.SOLID_MEDIUM)
     .setDataValidation(SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(false)
       .setHelpText('Fecha a ver o planificar (doble clic abre el calendario).').build());
   const hoy = new Date();
   sel.setValue(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()));
   etiqueta_(caja_(sh, 2, U(14), 1, 5), 'HORARIO');
-  caja_(sh, 2, U(19), 1, 12).setFontWeight('bold');
+  caja_(sh, 2, U(19), 1, 12).setFontWeight('bold').setFontSize(11);
   etiqueta_(caja_(sh, 2, U(32), 1, 5), 'DESCANSO');
-  caja_(sh, 2, U(37), 1, 17);
+  caja_(sh, 2, U(37), 1, 17).setFontSize(11);
   etiqueta_(caja_(sh, 2, U(55), 1, 8), 'MÁQ. ACTIVAS');
-  const activas = caja_(sh, 2, U(63), 1, 9).setFontWeight('bold').setFontSize(10).setFontColor('#b26a00');
+  const activas = caja_(sh, 2, U(63), 1, 9).setFontWeight('bold').setFontSize(12).setFontColor('#b26a00');
 
   // Leyenda
   [[U(1), COLOR.activa, 'Activa (trabaja)'], [U(12), COLOR.inactiva, 'Sin planificar'],
    [U(23), COLOR.alerta, 'Alerta de molde']].forEach(([c, col, txt]) => {
     sh.getRange(3, c).setBackground(col).setBorder(true, true, true, true, null, null, COLOR.borde, SB.SOLID);
-    caja_(sh, 3, c + 1, 1, 9).setValue(txt).setFontSize(8).setFontColor(COLOR.etiqueta);
+    caja_(sh, 3, c + 1, 1, 9).setValue(txt).setFontSize(9).setFontColor(COLOR.etiqueta);
   });
 
-  // Horas efectivas del turno (las usa la producción teórica)
+  // Horas efectivas del turno
   etiqueta_(caja_(sh, 3, U(34), 1, 10), 'HORAS EFECTIVAS');
   caja_(sh, CELDA.horas[0], CELDA.horas[1], 1, 5).setNumberFormat('0.0 "h"').setFontWeight('bold')
     .setHorizontalAlignment('left');
 
-  // Marcar / desmarcar todas
-  caja_(sh, CELDA.todas[0], CELDA.todas[1], 1, 2).insertCheckboxes().setHorizontalAlignment('center');
-  caja_(sh, CELDA.todas[0], CELDA.todas[1] + 2, 1, 15).setValue('Marcar / desmarcar todas')
-    .setFontSize(8).setFontWeight('bold').setFontColor(COLOR.texto);
+  // Selección rápida: todas y por línea
+  sh.getRange(CELDA.todas[0], CELDA.todas[1]).insertCheckboxes().setHorizontalAlignment('center');
+  caja_(sh, CELDA.todas[0], CELDA.todas[1] + 1, 1, 20).setValue('Marcar / desmarcar todas')
+    .setFontSize(10).setFontWeight('bold');
+  GRUPOS.forEach((g, i) => {
+    const [f, c] = CELDA.grupos[i];
+    sh.getRange(f, c).insertCheckboxes().setHorizontalAlignment('center');
+    caja_(sh, f, c + 1, 1, 6).setValue(`${g.nombre} (${g.desde}–${g.hasta})`).setFontSize(9).setFontWeight('bold');
+  });
 
   // ---- Plano ----
   seccion_(caja_(sh, 5, U(1), 1, 20), 'MÁQUINAS 201–218');
@@ -401,22 +447,23 @@ function construirHojaTurno_(sh) {
 
   const nums = ms.map(m => caja_(sh, m.num.fila, m.num.col, m.num.alto, m.num.ancho));
   sh.getRangeList(nums.map(r => r.getA1Notation())).setNumberFormat('@')
-    .setFontFamily('Roboto Mono').setFontWeight('bold').setFontSize(9);
+    .setFontFamily('Roboto Mono').setFontWeight('bold').setFontSize(12);
   const anchas = [], angostas = [], bajas = [];
   ms.forEach((m, i) => {
     const ancha = m.num.ancho >= 4;
-    nums[i].setValue(ancha ? ' ' + m.id : String(m.id));
+    nums[i].setValue(ancha ? '  ' + m.id : String(m.id));
     const a1 = nums[i].getA1Notation();
     if (ancha) anchas.push(a1);
     else if (m.num.alto > 1) angostas.push(a1);
     else bajas.push(a1);
   });
   sh.getRangeList(anchas).setHorizontalAlignment('left').setVerticalAlignment('middle');
-  sh.getRangeList(angostas).setHorizontalAlignment('center').setVerticalAlignment('top');
-  sh.getRangeList(bajas).setHorizontalAlignment('center').setVerticalAlignment('middle').setFontSize(8);
+  sh.getRangeList(angostas).setHorizontalAlignment('center').setVerticalAlignment('middle');
+  sh.getRangeList(bajas).setHorizontalAlignment('center').setVerticalAlignment('middle').setFontSize(11);
 
   const chks = ms.map(m => caja_(sh, m.chk.fila, m.chk.col, 1, m.chk.ancho).getA1Notation());
-  sh.getRangeList(chks).insertCheckboxes().setHorizontalAlignment('center').setVerticalAlignment('middle');
+  sh.getRangeList(chks).insertCheckboxes().setHorizontalAlignment('center').setVerticalAlignment('middle')
+    .setFontSize(12);
 
   // Colores del plano con formato condicional (se ven al instante al marcar una casilla).
   // Prioridad: alerta de molde > activa > sin planificar (fondo base).
@@ -443,16 +490,31 @@ function construirHojaTurno_(sh) {
   reglas.push(regla().whenFormulaSatisfied(fx_(`=${cuenta}=${META_MAQUINAS}`))
     .setFontColor('#1b7a3a').setRanges([activas]).build());
 
-  sh.getRange(CELDA.alertas[0], CELDA.alertas[1]).setFontColor('#ffffff').setFontSize(6)
-    .setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+  [CELDA.alertas, CELDA.pendiente, CELDA.fechaCargada].forEach(([f, c]) => sh.getRange(f, c)
+    .setFontColor('#ffffff').setFontSize(6).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP));
+  sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).setValue(false);
 
   // ---- Tabla de producción ----
   const n = ORDEN_TABLA.length;
   const fechaA1 = abs(sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1]));
-  caja_(sh, FILA_TABLA_TITULO, COL0, 1, ANCHO_TABLA).setBackground(COLOR.cabecera).setFontColor('#ffffff')
-    .setFontWeight('bold').setFontSize(10);
+  caja_(sh, FILA_TABLA_TITULO, COL0, 1, ANCHO_TOTAL).setBackground(COLOR.cabecera).setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(11);
   sh.getRange(FILA_TABLA_TITULO, COL0).setFormula(fx_(
     `="  INFORMACIÓN DE PRODUCCIÓN · MÁQUINAS ACTIVAS · "&IF(ISNUMBER(${fechaA1}),TEXT(${fechaA1},"dd/mm/yyyy"),"sin fecha")`));
+
+  // Botones: enviar a Planificación, descartar cambios y estado
+  sh.getRange(ACCION.enviar[0], ACCION.enviar[1]).insertCheckboxes().setHorizontalAlignment('center')
+    .setBackground(COLOR.enviar).setFontColor('#ffffff').setFontSize(12);
+  caja_(sh, FILA_ACCIONES, ACCION.enviar[1] + 1, 1, 12).setValue('ENVIAR A PLANIFICACIÓN')
+    .setBackground(COLOR.enviar).setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
+  sh.getRange(ACCION.descartar[0], ACCION.descartar[1]).insertCheckboxes().setHorizontalAlignment('center')
+    .setFontSize(12);
+  caja_(sh, FILA_ACCIONES, ACCION.descartar[1] + 1, 1, 10).setValue('Descartar cambios')
+    .setFontWeight('bold').setFontColor('#b3261e');
+  caja_(sh, ACCION.estado[0], ACCION.estado[1], 1, ANCHO_TOTAL - ACCION.estado[1] + COL0)
+    .setFontStyle('italic').setFontColor(COLOR.etiqueta);
+  const pendA1 = abs(sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]));
+  const estadoRg = sh.getRange(ACCION.estado[0], ACCION.estado[1]);
 
   CAMPOS_TABLA.forEach(x => {
     caja_(sh, FILA_TABLA_CAB, x.col, 1, x.ancho).setValue(x.titulo);
@@ -460,9 +522,9 @@ function construirHojaTurno_(sh) {
       .setBackground(x.entrada ? COLOR.entrada : COLOR.fijo)
       .setHorizontalAlignment(x.formato === '@' ? 'left' : 'center');
   });
-  sh.getRange(FILA_TABLA_CAB, COL0, 1, ANCHO_TABLA).setBackground('#dfe3ea').setFontSize(7).setFontWeight('bold')
+  sh.getRange(FILA_TABLA_CAB, COL0, 1, ANCHO_TOTAL).setBackground('#dfe3ea').setFontSize(9).setFontWeight('bold')
     .setFontColor(COLOR.texto).setWrap(true).setHorizontalAlignment('center');
-  sh.getRange(FILA_TABLA_CAB, COL0, n + 1, ANCHO_TABLA)
+  sh.getRange(FILA_TABLA_CAB, COL0, n + 1, ANCHO_TOTAL)
     .setBorder(true, true, true, true, true, true, COLOR.lineaTabla, SB.SOLID);
 
   const maq = CAMPO.maquina;
@@ -473,26 +535,11 @@ function construirHojaTurno_(sh) {
     .setHelpText('Solo números (≥ 0).').build();
   ENTRADAS.filter(x => x.numero).forEach(x => sh.getRange(FILA_TABLA_INI, x.col, n, x.ancho).setDataValidation(num));
 
-  // Indicadores calculados por fila
-  const horas = abs(sh.getRange(CELDA.horas[0], CELDA.horas[1]));
-  const formulas = {
-    golpes:       r => `=IF(AND(ISNUMBER(${r.contFin}),ISNUMBER(${r.contIni})),${r.contFin}-${r.contIni},"")`,
-    piezas:       r => `=IF(AND(ISNUMBER(${r.golpes}),ISNUMBER(${r.cavidades})),${r.golpes}*${r.cavidades},"")`,
-    teorica:      r => `=IF(AND(ISNUMBER(${r.cicloIdeal}),ISNUMBER(${r.cavidades}),N(${r.cicloIdeal})>0),ROUNDDOWN(${horas}*3600/${r.cicloIdeal}*${r.cavidades},0),"")`,
-    eficiencia:   r => `=IF(AND(ISNUMBER(${r.cicloIdeal}),ISNUMBER(${r.cicloReal}),N(${r.cicloReal})>0),${r.cicloIdeal}/${r.cicloReal},"")`,
-    cumplimiento: r => `=IF(AND(ISNUMBER(${r.piezas}),ISNUMBER(${r.teorica}),N(${r.teorica})>0),${r.piezas}/${r.teorica},"")`,
-  };
-  Object.keys(formulas).forEach(k => {
-    const filas = ORDEN_TABLA.map((id, i) => {
-      const r = {};
-      CAMPOS_TABLA.forEach(x => r[x.k] = letraCol_(x.col) + (FILA_TABLA_INI + i));
-      return [fx_(formulas[k](r))];
-    });
-    sh.getRange(FILA_TABLA_INI, CAMPO[k].col, n, 1).setFormulas(filas);
-  });
-
+  // Estado en rojo si hay cambios sin enviar
+  reglas.push(regla().whenFormulaSatisfied(`=${pendA1}`).setFontColor('#b3261e').setBold(true)
+    .setRanges([estadoRg]).build());
   // Fila naranja si la máquina tiene alerta de molde; contador final en rojo si es menor que el inicial
-  const filaTabla = sh.getRange(FILA_TABLA_INI, COL0, n, ANCHO_TABLA);
+  const filaTabla = sh.getRange(FILA_TABLA_INI, COL0, n, ANCHO_TOTAL);
   const maqA1 = '$' + letraCol_(maq.col) + FILA_TABLA_INI;
   reglas.push(regla().whenFormulaSatisfied(fx_(`=ISNUMBER(SEARCH("|"&${maqA1}&"|",${celAlertas}))`))
     .setBackground(COLOR.alerta).setRanges([filaTabla]).build());
@@ -503,12 +550,12 @@ function construirHojaTurno_(sh) {
     .setRanges([sh.getRange(FILA_TABLA_INI, CAMPO.contFin.col, n, CAMPO.contFin.ancho)]).build());
   sh.setConditionalFormatRules(reglas);
 
-  caja_(sh, FILA_AYUDA, COL0, 1, ANCHO_TABLA).setWrap(true).setVerticalAlignment('top').setFontSize(8)
+  caja_(sh, FILA_AYUDA, COL0, 1, ANCHO_TOTAL).setWrap(true).setVerticalAlignment('top').setFontSize(9)
     .setFontColor(COLOR.etiqueta)
-    .setValue('Cómo usar: 1) Elige la fecha arriba. 2) Marca la casilla de cada máquina que trabajará en el turno ' +
-      '(o usa «Marcar / desmarcar todas»); su fila aparece en la tabla, en orden de número. 3) Completa los campos ' +
-      'amarillos de la tabla: se guardan solos en la hoja Planificación. Para quitar una máquina con datos, borra sus ' +
-      'datos de la tabla y desmarca la casilla. Turno 3: la fecha es la del día en que inicia el turno (10:30 PM).');
+    .setValue('Cómo usar: 1) Elige la fecha arriba. 2) Marca las máquinas que trabajarán en el turno (una por una, ' +
+      'todas o por línea); su fila aparece en la tabla, en orden de número. 3) Completa los campos amarillos. ' +
+      '4) Marca «Enviar a Planificación» para guardar todo en la base de datos. Antes de cambiar de fecha envía o ' +
+      'descarta los cambios. El tonelaje se recuerda por máquina. Turno 3: la fecha es la del día en que inicia el turno (10:30 PM).');
 
   sh.hideRows(FILA_TABLA_INI, n);
 }
@@ -525,15 +572,18 @@ function ajustarTurno_(sh, t) {
   sh.setTabColor(T.color);
 }
 
-/** Protección de advertencia: avisa si se intenta escribir sobre el plano, las etiquetas o los cálculos. */
+/** Protección de advertencia: avisa si se intenta escribir sobre el plano o las etiquetas. */
 function proteger_(sh) {
   sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => p.remove());
   const p = sh.protect().setDescription('Plano y tabla (solo advertencia)').setWarningOnly(true);
   p.setUnprotectedRanges([
     sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1], 1, 8),
-    sh.getRange(CELDA.todas[0], CELDA.todas[1], 1, 2),
+    sh.getRange(CELDA.todas[0], CELDA.todas[1]),
+    sh.getRange(ACCION.enviar[0], ACCION.enviar[1]),
+    sh.getRange(ACCION.descartar[0], ACCION.descartar[1]),
     sh.getRange(FILA_TABLA_INI, COL_ENTRADA_INI, ORDEN_TABLA.length, COL_ENTRADA_FIN - COL_ENTRADA_INI + 1),
-  ].concat(maquinas_().map(m => sh.getRange(m.chk.fila, m.chk.col, 1, m.chk.ancho))));
+  ].concat(CELDA.grupos.map(([f, c]) => sh.getRange(f, c)))
+   .concat(maquinas_().map(m => sh.getRange(m.chk.fila, m.chk.col, 1, m.chk.ancho))));
 }
 
 // ======================= LÓGICA =======================
@@ -548,10 +598,11 @@ function turnoDeHoja_(nombre) {
   return 0;
 }
 function norm_(s) { return String(s == null ? '' : s).trim().toUpperCase(); }
+function vacio_(v) { return v === '' || v === null; }
 
 function ultimaFilaPlan_(sh) {
   const v = sh.getRange(1, 1, sh.getMaxRows(), 3).getValues();
-  for (let i = v.length - 1; i >= 0; i--) if (v[i].some(x => x !== '' && x !== null)) return i + 1;
+  for (let i = v.length - 1; i >= 0; i--) if (v[i].some(x => !vacio_(x))) return i + 1;
   return 1;
 }
 
@@ -562,7 +613,7 @@ function leerPlan_() {
   const ult = ultimaFilaPlan_(sh);
   if (ult < 2) return [];
   const out = [];
-  sh.getRange(2, 1, ult - 1, 13).getValues().forEach((r, i) => {
+  sh.getRange(2, 1, ult - 1, N_PLAN).getValues().forEach((r, i) => {
     const fecha = claveFecha_(r[IDX.fecha]), turno = Number(r[IDX.turno]), maq = String(r[IDX.maquina]).trim();
     if (!fecha || !TURNOS[turno] || !maq) return;
     out.push({ fila: i + 2, fecha: fecha, turno: turno, maquina: maq, ref: String(r[IDX.referencia]).trim(), valores: r });
@@ -575,11 +626,6 @@ function registros_(datos, clave, t) {
   const rec = {};
   if (clave) datos.forEach(r => { if (r.fecha === clave && r.turno === t) rec[r.maquina] = r; });
   return rec;
-}
-
-/** true si el registro tiene algún dato de producción además de fecha, turno y máquina. */
-function tieneDatos_(r) {
-  return r.valores.slice(IDX.producto).some(x => x !== '' && x !== null);
 }
 
 /** Minutos absolutos de inicio del turno (para ordenar cronológicamente). */
@@ -619,139 +665,181 @@ function pintarPlano_(sh, t, datos) {
   sh.getRange(CELDA.alertas[0], CELDA.alertas[1]).setValue(alertas.length ? '|' + alertas.join('|') + '|' : '');
 }
 
-/** Marca las casillas de las máquinas que tienen registro para la fecha y turno de la hoja. */
-function cargarCasillas_(sh, t, datos) {
-  const rec = registros_(datos, claveFecha_(sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1]).getValue()), t);
-  const si = [], no = [];
-  maquinas_().forEach(m => (rec[String(m.id)] ? si : no).push(casilla_(sh, m).getA1Notation()));
-  if (si.length) sh.getRangeList(si).check();
-  if (no.length) sh.getRangeList(no).uncheck();
+/** Estado actual de las casillas del plano: { id: true/false }. */
+function leerCasillas_(sh) {
+  const plano = sh.getRange(FILA_PLANO_INI, COL0, FILA_PLANO_FIN - FILA_PLANO_INI + 1, ULTIMA_COL - COL0).getValues();
+  const out = {};
+  maquinas_().forEach(m => out[m.id] = plano[m.chk.fila - FILA_PLANO_INI][m.chk.col - COL0] === true);
+  return out;
 }
 
-/**
- * Llena la tabla con los registros de la fecha y turno de la hoja y muestra solo las filas
- * de las máquinas activas. Con `ids` solo reescribe los valores de esas máquinas (así no pisa
- * lo que se esté escribiendo en otras filas).
- */
-function cargarTabla_(sh, t, datos, ids) {
-  const rec = registros_(datos, claveFecha_(sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1]).getValue()), t);
-  const ancho = COL_ENTRADA_FIN - COL_ENTRADA_INI + 1;
-  const filaValores = id => {
-    const fila = new Array(ancho).fill('');
-    const r = rec[String(id)];
-    if (r) ENTRADAS.forEach(x => fila[x.col - COL_ENTRADA_INI] = r.valores[IDX[x.k]]);
-    return fila;
-  };
-
-  if (ids === undefined) {
-    sh.getRange(FILA_TABLA_INI, COL_ENTRADA_INI, ORDEN_TABLA.length, ancho).setValues(ORDEN_TABLA.map(filaValores));
-  } else {
-    ids.forEach(id => sh.getRange(filaTabla_(id), COL_ENTRADA_INI, 1, ancho).setValues([filaValores(id)]));
-  }
-
-  // Muestra u oculta las filas por tramos seguidos
+/** Muestra solo las filas de la tabla de las máquinas activas (por tramos seguidos). */
+function mostrarFilas_(sh, activa) {
   let i = 0;
   while (i < ORDEN_TABLA.length) {
-    const visible = !!rec[String(ORDEN_TABLA[i])];
+    const visible = !!activa[ORDEN_TABLA[i]];
     let j = i;
-    while (j + 1 < ORDEN_TABLA.length && !!rec[String(ORDEN_TABLA[j + 1])] === visible) j++;
+    while (j + 1 < ORDEN_TABLA.length && !!activa[ORDEN_TABLA[j + 1]] === visible) j++;
     if (visible) sh.showRows(FILA_TABLA_INI + i, j - i + 1);
     else sh.hideRows(FILA_TABLA_INI + i, j - i + 1);
     i = j + 1;
   }
 }
 
-/**
- * Lleva el estado de las casillas a la hoja Planificación:
- *   marcada sin registro      → crea el registro (fecha, turno, máquina) y muestra su fila en la tabla
- *   desmarcada con registro   → lo borra si está vacío; si tiene producción, vuelve a marcar la casilla
- * Lee siempre el estado actual de todas las casillas, así que varios clics seguidos quedan bien.
- */
-function sincronizarCasillas_(sh, t) {
-  const ss = SpreadsheetApp.getActive();
-  const fechaV = sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1]).getValue();
-  const clave = claveFecha_(fechaV);
-  if (!clave) {
-    ss.toast('Elige una fecha válida arriba para registrar las máquinas activas.', 'Sin fecha', 5);
-    return;
-  }
-
-  const plano = sh.getRange(FILA_PLANO_INI, COL0, FILA_PLANO_FIN - FILA_PLANO_INI + 1, ULTIMA_COL - COL0).getValues();
-  const marcada = m => plano[m.chk.fila - FILA_PLANO_INI][m.chk.col - COL0] === true;
-  const rec = registros_(leerPlan_(), clave, t);
-
-  const nuevas = [], borrar = [], conservar = [];
-  let n = 0;
-  maquinas_().forEach(m => {
-    const r = rec[String(m.id)];
-    if (marcada(m)) {
-      n++;
-      if (!r) nuevas.push(m.id);
-    } else if (r) {
-      if (tieneDatos_(r)) conservar.push(m);
-      else borrar.push(r.fila);
-    }
-  });
-
-  const plan = ss.getSheetByName(HOJA_PLAN);
-  borrar.sort((a, b) => b - a).forEach(f => plan.deleteRow(f));
-  if (nuevas.length) {
-    const ini = ultimaFilaPlan_(plan) + 1;
-    const fin = ini + nuevas.length - 1;
-    if (fin > plan.getMaxRows()) plan.insertRowsAfter(plan.getMaxRows(), fin - plan.getMaxRows() + 200);
-    plan.getRange(ini, 1, nuevas.length, 13).setValues(nuevas.map(id => {
-      const fila = new Array(13).fill('');
-      fila[IDX.fecha] = fechaV; fila[IDX.turno] = t; fila[IDX.maquina] = id;
-      return fila;
-    }));
-  }
-
-  if (conservar.length) {
-    sh.getRangeList(conservar.map(m => casilla_(sh, m).getA1Notation())).check();
-    n += conservar.length;
-  }
-  cargarTabla_(sh, t, leerPlan_(), nuevas);
-
-  if (conservar.length) {
-    ss.toast(`Máquina(s) ${conservar.map(m => m.id).join(', ')}: tienen producción guardada y siguen activas. ` +
-      'Para quitarlas, borra sus datos de la tabla y desmarca la casilla.', 'No se desmarcaron', 8);
-  } else if (n > META_MAQUINAS) {
-    ss.toast(`Hay ${n} máquinas activas y la meta por turno es ${META_MAQUINAS}.`, TURNOS[t].hoja, 5);
-  }
+/** Casillas «todas» y «Línea N» marcadas solo si todas sus máquinas están activas. */
+function actualizarGrupos_(sh, activa) {
+  const ids = Object.keys(activa).map(Number);
+  sh.getRange(CELDA.todas[0], CELDA.todas[1]).setValue(ids.every(id => activa[id]));
+  GRUPOS.forEach((g, i) => sh.getRange(CELDA.grupos[i][0], CELDA.grupos[i][1])
+    .setValue(ids.filter(id => id >= g.desde && id <= g.hasta).every(id => activa[id])));
 }
 
-/** Guarda en Planificación las filas de la tabla editadas (f0 .. f0+n-1). */
-function guardarFilas_(sh, t, f0, n) {
+/**
+ * Tras marcar o desmarcar casillas: muestra/oculta las filas de la tabla y, en las filas
+ * activas sin tonelaje, pone el tonelaje guardado de la máquina.
+ */
+function aplicarSeleccion_(sh, t) {
+  const activa = leerCasillas_(sh);
+  const ton = tonelajes_();
+  const c = CAMPO.ton.col;
+  const rg = sh.getRange(FILA_TABLA_INI, c, ORDEN_TABLA.length, 1);
+  const valores = rg.getValues();
+  let cambio = false;
+  ORDEN_TABLA.forEach((id, i) => {
+    if (activa[id] && vacio_(valores[i][0]) && ton[id] !== undefined) { valores[i][0] = ton[id]; cambio = true; }
+  });
+  if (cambio) rg.setValues(valores);
+  mostrarFilas_(sh, activa);
+  actualizarGrupos_(sh, activa);
+}
+
+function marcarPendiente_(sh) {
+  sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).setValue(true);
+  sh.getRange(ACCION.estado[0], ACCION.estado[1])
+    .setValue('⚠ Hay cambios sin enviar: marca «Enviar a Planificación» para guardarlos.');
+}
+
+/**
+ * Carga en la hoja lo guardado en Planificación para la fecha y turno: casillas, tabla,
+ * filas visibles y alertas. Descarta los cambios sin enviar.
+ */
+function cargar_(sh, t, datos) {
+  const fechaV = sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1]).getValue();
+  const rec = registros_(datos, claveFecha_(fechaV), t);
+  const ton = tonelajes_();
+
+  const si = [], no = [], activa = {};
+  maquinas_().forEach(m => {
+    activa[m.id] = !!rec[String(m.id)];
+    (activa[m.id] ? si : no).push(casilla_(sh, m).getA1Notation());
+  });
+  if (si.length) sh.getRangeList(si).check();
+  if (no.length) sh.getRangeList(no).uncheck();
+
+  const ancho = COL_ENTRADA_FIN - COL_ENTRADA_INI + 1;
+  sh.getRange(FILA_TABLA_INI, COL_ENTRADA_INI, ORDEN_TABLA.length, ancho).setValues(ORDEN_TABLA.map(id => {
+    const fila = new Array(ancho).fill('');
+    const r = rec[String(id)];
+    if (r) ENTRADAS.forEach(x => fila[x.col - COL_ENTRADA_INI] = r.valores[IDX[x.k]]);
+    const iTon = CAMPO.ton.col - COL_ENTRADA_INI;
+    if (r && vacio_(fila[iTon]) && ton[id] !== undefined) fila[iTon] = ton[id];
+    return fila;
+  }));
+
+  mostrarFilas_(sh, activa);
+  actualizarGrupos_(sh, activa);
+  pintarPlano_(sh, t, datos);
+  sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).setValue(false);
+  sh.getRange(CELDA.fechaCargada[0], CELDA.fechaCargada[1]).setValue(fechaV);
+  sh.getRange(ACCION.estado[0], ACCION.estado[1]).setValue(si.length
+    ? `Datos cargados desde Planificación: ${si.length} máquina(s).`
+    : 'Sin datos enviados para esta fecha y turno.');
+}
+
+/** Cambio de fecha: si hay cambios sin enviar, se vuelve a la fecha anterior para no perderlos. */
+function cambiarFecha_(sh, t) {
+  const pendiente = sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).getValue() === true;
+  const anterior = sh.getRange(CELDA.fechaCargada[0], CELDA.fechaCargada[1]).getValue();
+  if (pendiente && claveFecha_(anterior)) {
+    sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1]).setValue(anterior);
+    SpreadsheetApp.getActive().toast('Tienes cambios sin enviar en esta fecha. Marca «Enviar a Planificación» ' +
+      'o «Descartar cambios» y luego cambia la fecha.', 'No se cambió la fecha', 8);
+    return;
+  }
+  cargar_(sh, t, leerPlan_());
+}
+
+/**
+ * Envía la selección y la tabla a Planificación para la fecha y turno de la hoja:
+ *   máquina marcada    → crea o actualiza su registro
+ *   máquina desmarcada → borra su registro si existía
+ */
+function enviar_(sh, t) {
   const ss = SpreadsheetApp.getActive();
   const fechaV = sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1]).getValue();
   const clave = claveFecha_(fechaV);
   if (!clave) {
-    ss.toast('Elige una fecha válida arriba antes de cargar datos.', 'No se guardó', 5);
+    ss.toast('Elige una fecha válida arriba antes de enviar.', 'No se envió', 5);
     return;
   }
 
-  const filas = sh.getRange(f0, COL0, n, ANCHO_TABLA).getValues();
+  const activa = leerCasillas_(sh);
+  const tabla = sh.getRange(FILA_TABLA_INI, COL0, ORDEN_TABLA.length, ANCHO_TOTAL).getValues();
+  const filaDe = id => tabla[ORDEN_TABLA.indexOf(id)];
+  const val = (id, k) => filaDe(id)[CAMPO[k].col - COL0];
+
+  const errores = ORDEN_TABLA.filter(id => activa[id] && typeof val(id, 'contIni') === 'number' &&
+    typeof val(id, 'contFin') === 'number' && val(id, 'contFin') < val(id, 'contIni'));
+  if (errores.length) {
+    ss.toast(`Máquina(s) ${errores.join(', ')}: el contador final es menor que el inicial. Corrígelo y vuelve a enviar.`,
+      'No se envió', 8);
+    return;
+  }
+
   const plan = ss.getSheetByName(HOJA_PLAN);
   const rec = registros_(leerPlan_(), clave, t);
-  const nuevas = [];
-  filas.forEach((fila, i) => {
-    const id = ORDEN_TABLA[f0 + i - FILA_TABLA_INI];
-    if (sh.isRowHiddenByUser(f0 + i)) return;
-    const valores = new Array(13).fill('');
-    valores[IDX.fecha] = fechaV; valores[IDX.turno] = t; valores[IDX.maquina] = id;
-    ENTRADAS.forEach(x => valores[IDX[x.k]] = fila[x.col - COL0]);
+  const nuevas = [], borrar = [];
+  let actualizadas = 0;
+  ORDEN_TABLA.forEach(id => {
     const r = rec[String(id)];
-    if (r) plan.getRange(r.fila, IDX.producto + 1, 1, 13 - IDX.producto).setValues([valores.slice(IDX.producto)]);
-    else nuevas.push(valores);
+    if (!activa[id]) {
+      if (r) borrar.push(r.fila);
+      return;
+    }
+    const fila = new Array(N_PLAN).fill('');
+    fila[IDX.fecha] = fechaV; fila[IDX.turno] = t; fila[IDX.maquina] = id;
+    ENTRADAS.forEach(x => fila[IDX[x.k]] = val(id, x.k));
+    if (r) {
+      plan.getRange(r.fila, 1, 1, N_PLAN).setValues([fila]);
+      actualizadas++;
+    } else {
+      nuevas.push(fila);
+    }
   });
   if (nuevas.length) {
     const ini = ultimaFilaPlan_(plan) + 1;
     const fin = ini + nuevas.length - 1;
     if (fin > plan.getMaxRows()) plan.insertRowsAfter(plan.getMaxRows(), fin - plan.getMaxRows() + 200);
-    plan.getRange(ini, 1, nuevas.length, 13).setValues(nuevas);
+    plan.getRange(ini, 1, nuevas.length, N_PLAN).setValues(nuevas);
   }
+  borrar.sort((a, b) => b - a).forEach(f => plan.deleteRow(f));
 
+  // El tonelaje queda guardado por máquina para las próximas veces
+  const listas = ss.getSheetByName(HOJA_LISTAS);
+  const ids = listas.getRange(2, 1, Math.max(listas.getLastRow() - 1, 1), 1).getValues().map(r => Number(r[0]));
+  ORDEN_TABLA.forEach(id => {
+    const ton = val(id, 'ton'), i = ids.indexOf(id);
+    if (activa[id] && typeof ton === 'number' && i >= 0) listas.getRange(i + 2, 2).setValue(ton);
+  });
+
+  sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).setValue(false);
+  sh.getRange(CELDA.fechaCargada[0], CELDA.fechaCargada[1]).setValue(fechaV);
   pintarTodos_(leerPlan_());
+  const hora = Utilities.formatDate(new Date(), tz(), 'h:mm a');
+  const total = nuevas.length + actualizadas;
+  sh.getRange(ACCION.estado[0], ACCION.estado[1]).setValue(`✓ Enviado a Planificación a las ${hora}: ${total} máquina(s)` +
+    (borrar.length ? `, ${borrar.length} quitada(s).` : '.'));
+  ss.toast(`${nuevas.length} nueva(s), ${actualizadas} actualizada(s), ${borrar.length} quitada(s).`, 'Enviado a Planificación', 5);
 }
 
 function pintarTodos_(datos) {
@@ -761,13 +849,13 @@ function pintarTodos_(datos) {
   });
 }
 
+/** Recarga las hojas de turno desde Planificación (las que tienen cambios sin enviar solo actualizan alertas). */
 function actualizarTodo_() {
   const datos = leerPlan_();
   [1, 2, 3, 4].forEach(t => {
     const sh = SpreadsheetApp.getActive().getSheetByName(TURNOS[t].hoja);
     if (!sh) return;
-    pintarPlano_(sh, t, datos);
-    cargarCasillas_(sh, t, datos);
-    cargarTabla_(sh, t, datos);
+    if (sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).getValue() === true) pintarPlano_(sh, t, datos);
+    else cargar_(sh, t, datos);
   });
 }
