@@ -56,19 +56,19 @@ const COLOR = {
 
 // ======================= CUADRÍCULA =======================
 // Columna A = margen. El plano usa "unidades" de 29 px desde la columna B (58 unidades de ancho):
-//   1–48  Líneas 2 (201–218) y 1 (101–124) · 50–53  Máquinas 125–143 · 55–58  Soplado
-// Todas las máquinas tienen el mismo tamaño (2 × 2 celdas) y el plano (filas 1–25) cabe
+//   1–43  Líneas 2 (201–218) y 1 (101–124) · 45–50  Máquinas 125–143 · 52–57  Soplado
+// Todas las máquinas tienen el mismo tamaño (3 × 2 celdas) y el plano (filas 1–25) cabe
 // en una pantalla Full HD sin desplazarse.
 const ANCHO_UNIDAD = 29;
 const COL0 = 2;
 const N_UNIDADES = 58;
 const U = u => COL0 + u - 1;
-const COL_125 = U(50);              // columnas de las máquinas 125–134 y 135–143
-const S = u => U(54) + u;           // zona Soplado: unidades 1..4
+const COL_125 = U(45);              // columnas de las máquinas 125–134 y 135–143
+const S = u => U(51) + u;           // zona Soplado: unidades 1..6
 const ULTIMA_COL = U(N_UNIDADES) + 1; // columna de margen derecho
 const ANCHO_TOTAL = N_UNIDADES;
 const FILA_PLANO_INI = 6, FILA_PLANO_FIN = 25;
-const ALTO_FILA_PLANO = 26;
+const ALTO_FILA_PLANO = 27;
 
 const CELDA = {
   fechaSel: [2, U(4)], activas: [2, U(36)], horas: [3, U(28)], todas: [3, U(33)],
@@ -82,7 +82,7 @@ const ANCHO_FECHA = 5;
 
 /**
  * Distribución de las máquinas según la hoja resumen de asignación de personal.
- * Todas las máquinas miden 2 × 2 celdas y se dividen en dos zonas:
+ * Todas las máquinas miden 3 × 2 celdas y se dividen en dos zonas:
  *   num → número de la máquina (fila de arriba)
  *   chk → casilla para marcarla como activa (fila de abajo)
  */
@@ -99,19 +99,19 @@ function maquinas_() {
     }
     m.push(x);
   };
-  const q = (id, fila, col) => add(id, fila, col, 2, 2);
+  const q = (id, fila, col) => add(id, fila, col, 2, 3);
   // Bloque 201–218: 201 encima de la 202, 202–214 en fila y 218–215 en columna a la derecha
   q(201, 6, U(1));
-  for (let j = 0; j < 13; j++) q(202 + j, 8, U(2 * j + 1));
-  q(218, 6, U(28)); q(217, 8, U(28)); q(216, 10, U(28)); q(215, 12, U(28));
-  // Bloque 101–124
-  for (let i = 0; i < 24; i++) q(101 + i, 15, U(2 * i + 1));
+  for (let j = 0; j < 13; j++) q(202 + j, 8, U(3 * j + 1));
+  q(218, 6, U(41)); q(217, 8, U(41)); q(216, 10, U(41)); q(215, 12, U(41));
+  // Bloque 101–124 en dos filas: 101–112 y 113–124
+  for (let i = 0; i < 24; i++) q(101 + i, 15 + 2 * Math.floor(i / 12), U(3 * (i % 12) + 1));
   // Bloque 125–143 en dos columnas: 125–134 y 135–143
-  for (let k = 0; k < 19; k++) q(125 + k, 6 + 2 * (k % 10), COL_125 + 2 * Math.floor(k / 10));
+  for (let k = 0; k < 19; k++) q(125 + k, 6 + 2 * (k % 10), COL_125 + 3 * Math.floor(k / 10));
   // Soplado
-  q(306, 6, S(3));
-  q(302, 8, S(1)); q(305, 8, S(3));
-  q(301, 10, S(1)); q(304, 10, S(3));
+  q(306, 6, S(4));
+  q(302, 8, S(1)); q(305, 8, S(4));
+  q(301, 10, S(1)); q(304, 10, S(4));
   return m;
 }
 
@@ -438,9 +438,9 @@ function construirHojaTurno_(sh) {
   // ---- Plano ----
   seccion_(caja_(sh, 5, U(1), 1, 20), 'MÁQUINAS 201–218');
   seccion_(caja_(sh, 14, U(1), 1, 20), 'MÁQUINAS 101–124');
-  seccion_(caja_(sh, 5, COL_125, 1, 4), '125–143');
-  seccion_(caja_(sh, 5, S(1), 1, 4), ' SOPLADO');
-  sh.getRange(5, S(1), 7, 4).setBorder(true, true, true, true, null, null, '#7a8594', SB.DASHED);
+  seccion_(caja_(sh, 5, COL_125, 1, 6), 'MÁQUINAS 125–143');
+  seccion_(caja_(sh, 5, S(1), 1, 6), ' SOPLADO');
+  sh.getRange(5, S(1), 7, 6).setBorder(true, true, true, true, null, null, '#7a8594', SB.DASHED);
 
   const ms = maquinas_();
   const bloques = ms.map(m => sh.getRange(m.fila, m.col, m.alto, m.ancho));
