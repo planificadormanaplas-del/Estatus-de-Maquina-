@@ -10,20 +10,24 @@
  *   4. Vuelve a la hoja y RECÁRGALA (F5).
  *
  * Hojas que crea:
- *   Turno 1 · Turno 2 · Turno 3 · Turno 4  → plano de máquinas + tabla de producción
+ *   Turno 1 · Turno 2 · Turno 3 · Turno 4  → plano de máquinas + asignación de personal
  *   Planificación                           → base de datos (una fila por fecha/turno/máquina)
+ *   Personal por turno                      → base de datos (una fila por fecha/turno)
  *   Listas (oculta)                         → máquinas y su tonelaje
  *
  * Uso:
- *   · Casilla de cada máquina        → la marca como activa y muestra su fila en la tabla.
+ *   · Casilla de cada máquina        → la marca como activa y agrega su fila a la tabla.
  *   · «Marcar / desmarcar todas»     → todas las máquinas. «Línea 1/2/3» → solo esa línea.
- *   · Tabla de producción            → una fila por máquina activa, en orden de número.
- *   · «Enviar a Planificación»       → guarda la selección y la tabla en la hoja Planificación.
+ *   · Tabla de máquinas activas      → una fila por máquina activa, en orden de número, con
+ *                                      sus operarios y técnico de inyección.
+ *   · Personal del turno             → supervisor, SHA, calidad, mantenimiento y empaque.
+ *   · «Enviar a Planificación»       → guarda máquinas y personal de la fecha y el turno.
  *   · «Descartar cambios»            → vuelve a lo último enviado para esa fecha y turno.
  */
 
 // ======================= CONFIGURACIÓN =======================
 const HOJA_PLAN = 'Planificación';
+const HOJA_PERSONAL = 'Personal por turno';
 const HOJA_LISTAS = 'Listas';
 
 const TURNOS = {
@@ -33,12 +37,24 @@ const TURNOS = {
   4: { hoja: 'Turno 4', horario: '7:00 AM – 4:00 PM',  descanso: '1 h de 12:00 PM a 1:00 PM',    horas: 8,   inicioMin: 420,  cambioMolde: true,  color: '#1f6fd1' },
 };
 
-// Columnas de la hoja Planificación (A:O). P y Q son fórmulas (Golpes y Piezas).
-const COLS_PLAN = ['Fecha', 'Turno', 'Máquina', 'Ton', 'OP', 'Producto', 'Referencia', 'Ciclo ideal (s)',
-  'Ciclo real (s)', 'Contador inicial', 'Contador final', 'Cavidades', 'Color', 'Material', 'N° operarios'];
-const IDX = { fecha: 0, turno: 1, maquina: 2, ton: 3, op: 4, producto: 5, referencia: 6, cicloIdeal: 7,
-  cicloReal: 8, contIni: 9, contFin: 10, cavidades: 11, color: 12, material: 13, operarios: 14 };
+// Columnas de la hoja Planificación (A:M)
+const COLS_PLAN = ['Fecha', 'Turno', 'Máquina', 'Ton', 'OP', 'Producto', 'Referencia', 'Color', 'Material',
+  'Operario 1', 'Operario 2', 'Operario 3', 'Técnico de inyección'];
+const IDX = { fecha: 0, turno: 1, maquina: 2, ton: 3, op: 4, producto: 5, referencia: 6, color: 7, material: 8,
+  operario1: 9, operario2: 10, operario3: 11, tecnico: 12 };
 const N_PLAN = COLS_PLAN.length;
+
+// Personal del turno (cuadro al lado de la tabla y hoja «Personal por turno»)
+const PUESTOS = [
+  { titulo: 'Supervisor', n: 1 },
+  { titulo: 'Personal de SHA', n: 1 },
+  { titulo: 'Personal de Calidad', n: 1 },
+  { titulo: 'Personal de Mantenimiento', n: 6 },
+  { titulo: 'Personal de Empaque', n: 1 },
+];
+const COLS_PERSONAL = ['Fecha', 'Turno'].concat(...PUESTOS.map(p => p.n === 1 ? [p.titulo]
+  : Array.from({ length: p.n }, (_, i) => `${p.titulo} ${i + 1}`)));
+const N_NOMBRES = COLS_PERSONAL.length - 2;
 
 // Grupos de selección rápida
 const GRUPOS = [
@@ -133,32 +149,32 @@ function casilla_(sh, m) {
   return sh.getRange(m.chk.fila, m.chk.col);
 }
 
-// ======================= TABLA DE PRODUCCIÓN =======================
-// Una fila fija por máquina, en orden de número. Solo se muestran las filas de las máquinas activas.
-const FILA_TABLA_TITULO = FILA_PLANO_FIN + 5, FILA_ACCIONES = FILA_TABLA_TITULO + 1,
-  FILA_TABLA_CAB = FILA_TABLA_TITULO + 2, FILA_TABLA_INI = FILA_TABLA_TITULO + 3;
+// ======================= TABLA DE MÁQUINAS Y PERSONAL =======================
+// Las máquinas activas se escriben una debajo de otra, en orden de número (sin filas ocultas en
+// medio). A la derecha va el cuadro con el personal del turno.
+const FILA_ACCIONES = FILA_PLANO_FIN + 5, FILA_TABLA_TITULO = FILA_ACCIONES + 1,
+  FILA_TABLA_CAB = FILA_ACCIONES + 2, FILA_TABLA_INI = FILA_ACCIONES + 3;
 const ORDEN_TABLA = maquinas_().map(m => m.id).sort((a, b) => a - b);
-const FILA_TABLA_FIN = FILA_TABLA_INI + ORDEN_TABLA.length - 1;
+const N_FILAS_TABLA = Math.max(ORDEN_TABLA.length, N_NOMBRES);
+const FILA_TABLA_FIN = FILA_TABLA_INI + N_FILAS_TABLA - 1;
 const FILA_AYUDA = FILA_TABLA_FIN + 2;
 const FILAS_HOJA = FILA_AYUDA + 1;
 
 const ACCION = { enviar: [FILA_ACCIONES, U(1)], descartar: [FILA_ACCIONES, U(10)], estado: [FILA_ACCIONES, U(17)] };
 
-// k = campo de Planificación; ancho en unidades (deben sumar N_UNIDADES = 45).
+// k = campo de Planificación; ancho en unidades (la tabla ocupa las unidades 1–36).
 const CAMPOS_TABLA = [
-  { k: 'maquina',    titulo: 'MÁQ.',              ancho: 2 },
-  { k: 'ton',        titulo: 'Ton',               ancho: 2,  entrada: true, formato: '0',     numero: true },
-  { k: 'op',         titulo: 'OP',                ancho: 3,  entrada: true, formato: '@' },
-  { k: 'producto',   titulo: 'PRODUCTO',          ancho: 9, entrada: true, formato: '@' },
-  { k: 'referencia', titulo: 'REFERENCIA',        ancho: 5,  entrada: true, formato: '@' },
-  { k: 'color',      titulo: 'COLOR',             ancho: 3,  entrada: true, formato: '@' },
-  { k: 'material',   titulo: 'MATERIAL',          ancho: 3,  entrada: true, formato: '@' },
-  { k: 'cicloIdeal', titulo: 'CICLO IDEAL (s)',   ancho: 3,  entrada: true, formato: '0.0',   numero: true },
-  { k: 'cicloReal',  titulo: 'CICLO REAL (s)',    ancho: 3,  entrada: true, formato: '0.0',   numero: true },
-  { k: 'cavidades',  titulo: 'CAVIDADES',         ancho: 3,  entrada: true, formato: '0',     numero: true },
-  { k: 'contIni',    titulo: 'CONTADOR INICIAL',  ancho: 3,  entrada: true, formato: '#,##0', numero: true },
-  { k: 'contFin',    titulo: 'CONTADOR FINAL',    ancho: 3,  entrada: true, formato: '#,##0', numero: true },
-  { k: 'operarios',  titulo: 'N° OPERARIOS',      ancho: 3,  entrada: true, formato: '0',     numero: true },
+  { k: 'maquina',    titulo: 'MÁQ.',                 ancho: 2 },
+  { k: 'ton',        titulo: 'TON',                  ancho: 2, entrada: true, formato: '0', numero: true },
+  { k: 'op',         titulo: 'OP',                   ancho: 3, entrada: true, formato: '@' },
+  { k: 'producto',   titulo: 'PRODUCTO',             ancho: 6, entrada: true, formato: '@' },
+  { k: 'referencia', titulo: 'REFERENCIA',           ancho: 4, entrada: true, formato: '@' },
+  { k: 'color',      titulo: 'COLOR',                ancho: 3, entrada: true, formato: '@' },
+  { k: 'material',   titulo: 'MATERIAL',             ancho: 3, entrada: true, formato: '@' },
+  { k: 'operario1',  titulo: 'OPERARIO 1',           ancho: 3, entrada: true, formato: '@' },
+  { k: 'operario2',  titulo: 'OPERARIO 2',           ancho: 3, entrada: true, formato: '@' },
+  { k: 'operario3',  titulo: 'OPERARIO 3',           ancho: 3, entrada: true, formato: '@' },
+  { k: 'tecnico',    titulo: 'TÉCNICO DE INYECCIÓN', ancho: 4, entrada: true, formato: '@' },
 ];
 (function () {
   let c = COL0;
@@ -169,10 +185,10 @@ CAMPOS_TABLA.forEach(x => CAMPO[x.k] = x);
 const ENTRADAS = CAMPOS_TABLA.filter(x => x.entrada);
 const COL_ENTRADA_INI = ENTRADAS[0].col;
 const COL_ENTRADA_FIN = ENTRADAS[ENTRADAS.length - 1].col + ENTRADAS[ENTRADAS.length - 1].ancho - 1;
+const ANCHO_TABLA = CAMPOS_TABLA.reduce((s, x) => s + x.ancho, 0);
 
-function filaTabla_(id) {
-  return FILA_TABLA_INI + ORDEN_TABLA.indexOf(Number(id));
-}
+// Cuadro de personal: puesto (4 unidades) y nombre (4 unidades), a la derecha de la tabla
+const COL_PUESTO = U(ANCHO_TABLA + 2), COL_NOMBRE = COL_PUESTO + 4, ANCHO_PERSONAL = 8;
 
 // ======================= MENÚ Y DISPARADORES =======================
 function onOpen() {
@@ -227,7 +243,8 @@ function onEdit(e) {
       aplicarSeleccion_(sh, t);
       marcarPendiente_(sh);
     } else if (f <= FILA_TABLA_FIN && f + rg.getNumRows() - 1 >= FILA_TABLA_INI &&
-               c <= COL_ENTRADA_FIN && c + rg.getNumColumns() - 1 >= COL_ENTRADA_INI) {
+               ((c <= COL_ENTRADA_FIN && c + rg.getNumColumns() - 1 >= COL_ENTRADA_INI) ||
+                (c <= COL_NOMBRE + 3 && c + rg.getNumColumns() - 1 >= COL_NOMBRE))) {
       marcarPendiente_(sh);
     }
   } finally {
@@ -261,6 +278,7 @@ function configurarArchivo() {
   const ss = SpreadsheetApp.getActive();
   prepararListas_(ss);
   prepararPlan_(ss);
+  prepararPersonal_(ss);
 
   [1, 2, 3, 4].forEach(t => {
     const s = ss.getSheetByName(TURNOS[t].hoja);
@@ -282,9 +300,11 @@ function configurarArchivo() {
   });
   ss.setActiveSheet(ss.getSheetByName(HOJA_PLAN));
   ss.moveActiveSheet(5);
+  ss.setActiveSheet(ss.getSheetByName(HOJA_PERSONAL));
+  ss.moveActiveSheet(6);
 
   // Elimina hojas vacías por defecto ("Hoja 1", "Sheet1"...)
-  const nuestras = [HOJA_PLAN, HOJA_LISTAS].concat([1, 2, 3, 4].map(t => TURNOS[t].hoja));
+  const nuestras = [HOJA_PLAN, HOJA_PERSONAL, HOJA_LISTAS].concat([1, 2, 3, 4].map(t => TURNOS[t].hoja));
   ss.getSheets().forEach(s => {
     if (nuestras.indexOf(s.getName()) === -1 && s.getLastRow() === 0 && s.getLastColumn() === 0) ss.deleteSheet(s);
   });
@@ -316,31 +336,46 @@ function tonelajes_() {
   return out;
 }
 
+/**
+ * Reacomoda una hoja de datos a las columnas `cols` buscando cada columna por su nombre en la
+ * fila 1: conserva los datos de las columnas que siguen existiendo y quita las demás.
+ */
+function migrarColumnas_(sh, cols) {
+  const ultCol = sh.getLastColumn(), ultFila = sh.getLastRow();
+  const cab = ultCol ? sh.getRange(1, 1, 1, ultCol).getValues()[0].map(String) : [];
+  if (cab.length === cols.length && cols.every((c, i) => cab[i] === c)) return;
+  const datos = (ultFila >= 2 && ultCol) ? sh.getRange(2, 1, ultFila - 1, ultCol).getValues() : [];
+  const desde = cols.map(c => cab.indexOf(c));
+  sh.clear();
+  sh.getRange(1, 1, 1, sh.getMaxColumns()).setDataValidation(null);
+  if (sh.getMaxColumns() < cols.length) sh.insertColumnsAfter(sh.getMaxColumns(), cols.length - sh.getMaxColumns());
+  sh.getRange(1, 1, 1, cols.length).setValues([cols]);
+  const filas = datos.filter(r => r.some(x => !vacio_(x))).map(r => desde.map(i => i >= 0 ? r[i] : ''));
+  if (filas.length) {
+    if (filas.length + 1 > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), filas.length + 1 - sh.getMaxRows());
+    sh.getRange(2, 1, filas.length, cols.length).setValues(filas);
+  }
+}
+
+/** Formato de la fila de títulos de una hoja de datos. */
+function cabecera_(sh, n) {
+  sh.getRange(1, 1, 1, n).setFontWeight('bold').setFontColor('#ffffff').setBackground(COLOR.cabecera)
+    .setWrap(true).setVerticalAlignment('middle').setHorizontalAlignment('center')
+    .setBorder(true, true, true, true, true, true, '#ffffff', SpreadsheetApp.BorderStyle.SOLID);
+  sh.setFrozenRows(1);
+  sh.setRowHeight(1, 36);
+}
+
 function prepararPlan_(ss) {
   let sh = ss.getSheetByName(HOJA_PLAN);
   if (!sh) sh = ss.insertSheet(HOJA_PLAN);
-  const SB = SpreadsheetApp.BorderStyle;
-
-  // Versión anterior (sin Ton ni OP): se insertan las dos columnas después de Máquina sin perder datos
-  if (sh.getRange(1, 3).getValue() === 'Máquina' && sh.getRange(1, 4).getValue() === 'Producto') {
-    sh.insertColumnsAfter(3, 2);
-  }
-  if (sh.getMaxColumns() < N_PLAN + 2) sh.insertColumnsAfter(sh.getMaxColumns(), N_PLAN + 2 - sh.getMaxColumns());
-
-  sh.getRange(1, 1, 1, N_PLAN).setValues([COLS_PLAN]);
-  sh.getRange(1, N_PLAN + 1).setFormula(fx_('={"Golpes";ARRAYFORMULA(IF((J2:J<>"")*(K2:K<>""),K2:K-J2:J,""))}'));
-  sh.getRange(1, N_PLAN + 2).setFormula(fx_('={"Piezas";ARRAYFORMULA(IF((P2:P<>"")*(L2:L<>""),P2:P*L2:L,""))}'));
-  sh.getRange(1, 1, 1, N_PLAN + 2).setFontWeight('bold').setFontColor('#ffffff').setBackground(COLOR.cabecera)
-    .setWrap(true).setVerticalAlignment('middle').setHorizontalAlignment('center')
-    .setBorder(true, true, true, true, true, true, '#ffffff', SB.SOLID);
-  sh.getRange(1, N_PLAN + 1, 1, 2).setBackground('#5b6676');
-  sh.setFrozenRows(1);
-  sh.setRowHeight(1, 36);
+  migrarColumnas_(sh, COLS_PLAN);
+  cabecera_(sh, N_PLAN);
 
   const n = sh.getMaxRows() - 1;
   const col = k => IDX[k] + 1;
   const dv = SpreadsheetApp.newDataValidation;
-  sh.getRange(2, 1, n, N_PLAN).setDataValidation(null);
+  sh.getRange(2, 1, n, sh.getMaxColumns()).setDataValidation(null);
   sh.getRange(2, col('fecha'), n, 1).setNumberFormat('dd/mm/yyyy')
     .setDataValidation(dv().requireDate().setAllowInvalid(false).build());
   sh.getRange(2, col('turno'), n, 1).setHorizontalAlignment('center')
@@ -348,19 +383,28 @@ function prepararPlan_(ss) {
   sh.getRange(2, col('maquina'), n, 1).setHorizontalAlignment('center').setNumberFormat('0')
     .setDataValidation(dv().requireValueInRange(ss.getSheetByName(HOJA_LISTAS).getRange('A2:A200'), true)
       .setAllowInvalid(false).build());
-  ['op', 'producto', 'referencia', 'color', 'material'].forEach(k => sh.getRange(2, col(k), n, 1).setNumberFormat('@'));
-  sh.getRange(2, col('ton'), n, 1).setNumberFormat('0').setHorizontalAlignment('center');
-  sh.getRange(2, col('cicloIdeal'), n, 2).setNumberFormat('0.0');
-  sh.getRange(2, col('contIni'), n, 2).setNumberFormat('#,##0');
-  sh.getRange(2, col('cavidades'), n, 1).setNumberFormat('0');
-  sh.getRange(2, col('operarios'), n, 1).setNumberFormat('0');
-  sh.getRange(2, N_PLAN + 1, n, 2).setNumberFormat('#,##0').setBackground('#f1f3f6');
-  const num = dv().requireNumberGreaterThanOrEqualTo(0).setAllowInvalid(false).setHelpText('Solo números (≥ 0).').build();
-  ['ton', 'cicloIdeal', 'cicloReal', 'contIni', 'contFin', 'cavidades', 'operarios']
-    .forEach(k => sh.getRange(2, col(k), n, 1).setDataValidation(num));
+  sh.getRange(2, col('op'), n, N_PLAN - IDX.op).setNumberFormat('@');
+  sh.getRange(2, col('ton'), n, 1).setNumberFormat('0').setHorizontalAlignment('center')
+    .setDataValidation(dv().requireNumberGreaterThanOrEqualTo(0).setAllowInvalid(false)
+      .setHelpText('Solo números (≥ 0).').build());
 
-  const anchos = [90, 55, 70, 60, 100, 220, 120, 80, 80, 100, 100, 75, 100, 120, 80, 85, 90];
+  const anchos = [90, 55, 70, 60, 100, 220, 120, 100, 120, 150, 150, 150, 170];
   anchos.forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  sh.setTabColor('#5b6676');
+}
+
+function prepararPersonal_(ss) {
+  let sh = ss.getSheetByName(HOJA_PERSONAL);
+  if (!sh) sh = ss.insertSheet(HOJA_PERSONAL);
+  migrarColumnas_(sh, COLS_PERSONAL);
+  cabecera_(sh, COLS_PERSONAL.length);
+  const n = sh.getMaxRows() - 1;
+  sh.getRange(2, 1, n, 1).setNumberFormat('dd/mm/yyyy');
+  sh.getRange(2, 2, n, 1).setHorizontalAlignment('center');
+  sh.getRange(2, 3, n, N_NOMBRES).setNumberFormat('@');
+  sh.setColumnWidth(1, 90);
+  sh.setColumnWidth(2, 55);
+  sh.setColumnWidths(3, N_NOMBRES, 160);
   sh.setTabColor('#5b6676');
 }
 
@@ -494,13 +538,15 @@ function construirHojaTurno_(sh) {
     .setFontColor('#ffffff').setFontSize(6).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP));
   sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).setValue(false);
 
-  // ---- Tabla de producción ----
-  const n = ORDEN_TABLA.length;
+  // ---- Tabla de máquinas activas y cuadro de personal ----
+  const n = N_FILAS_TABLA;
   const fechaA1 = abs(sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1]));
-  caja_(sh, FILA_TABLA_TITULO, COL0, 1, ANCHO_TOTAL).setBackground(COLOR.cabecera).setFontColor('#ffffff')
+  caja_(sh, FILA_TABLA_TITULO, COL0, 1, ANCHO_TABLA).setBackground(COLOR.cabecera).setFontColor('#ffffff')
     .setFontWeight('bold').setFontSize(11);
   sh.getRange(FILA_TABLA_TITULO, COL0).setFormula(fx_(
     `="  INFORMACIÓN DE PRODUCCIÓN · MÁQUINAS ACTIVAS · "&IF(ISNUMBER(${fechaA1}),TEXT(${fechaA1},"dd/mm/yyyy"),"sin fecha")`));
+  caja_(sh, FILA_TABLA_TITULO, COL_PUESTO, 1, ANCHO_PERSONAL).setValue('  PERSONAL DEL TURNO')
+    .setBackground(COLOR.cabecera).setFontColor('#ffffff').setFontWeight('bold').setFontSize(11);
 
   // Botones: enviar a Planificación, descartar cambios y estado
   sh.getRange(ACCION.enviar[0], ACCION.enviar[1]).insertCheckboxes().setHorizontalAlignment('center')
@@ -522,42 +568,51 @@ function construirHojaTurno_(sh) {
       .setBackground(x.entrada ? COLOR.entrada : COLOR.fijo)
       .setHorizontalAlignment(x.formato === '@' ? 'left' : 'center');
   });
-  sh.getRange(FILA_TABLA_CAB, COL0, 1, ANCHO_TOTAL).setBackground('#dfe3ea').setFontSize(9).setFontWeight('bold')
+  sh.getRange(FILA_TABLA_CAB, COL0, 1, ANCHO_TABLA).setBackground('#dfe3ea').setFontSize(9).setFontWeight('bold')
     .setFontColor(COLOR.texto).setWrap(true).setHorizontalAlignment('center');
-  sh.getRange(FILA_TABLA_CAB, COL0, n + 1, ANCHO_TOTAL)
+  sh.getRange(FILA_TABLA_CAB, COL0, n + 1, ANCHO_TABLA)
     .setBorder(true, true, true, true, true, true, COLOR.lineaTabla, SB.SOLID);
 
   const maq = CAMPO.maquina;
-  sh.getRange(FILA_TABLA_INI, maq.col, n, 1).setValues(ORDEN_TABLA.map(id => [id]));
   sh.getRange(FILA_TABLA_INI, maq.col, n, maq.ancho).setFontFamily('Roboto Mono').setFontWeight('bold');
+  sh.getRange(FILA_TABLA_INI, CAMPO.ton.col, n, CAMPO.ton.ancho).setDataValidation(SpreadsheetApp.newDataValidation()
+    .requireNumberGreaterThanOrEqualTo(0).setAllowInvalid(false).setHelpText('Solo números (≥ 0).').build());
 
-  const num = SpreadsheetApp.newDataValidation().requireNumberGreaterThanOrEqualTo(0).setAllowInvalid(false)
-    .setHelpText('Solo números (≥ 0).').build();
-  ENTRADAS.filter(x => x.numero).forEach(x => sh.getRange(FILA_TABLA_INI, x.col, n, x.ancho).setDataValidation(num));
+  // Cuadro de personal: puesto | nombre (Mantenimiento ocupa 6 filas)
+  caja_(sh, FILA_TABLA_CAB, COL_PUESTO, 1, 4).setValue('PUESTO');
+  caja_(sh, FILA_TABLA_CAB, COL_NOMBRE, 1, 4).setValue('NOMBRE');
+  sh.getRange(FILA_TABLA_CAB, COL_PUESTO, 1, ANCHO_PERSONAL).setBackground('#dfe3ea').setFontSize(9)
+    .setFontWeight('bold').setHorizontalAlignment('center');
+  let fila = FILA_TABLA_INI;
+  PUESTOS.forEach(p => {
+    caja_(sh, fila, COL_PUESTO, p.n, 4).setValue(p.titulo).setFontWeight('bold').setFontSize(9).setWrap(true)
+      .setBackground(COLOR.fijo).setVerticalAlignment('middle');
+    fila += p.n;
+  });
+  sh.getRange(FILA_TABLA_INI, COL_NOMBRE, N_NOMBRES, 4).mergeAcross().setNumberFormat('@')
+    .setBackground(COLOR.entrada);
+  sh.getRange(FILA_TABLA_CAB, COL_PUESTO, N_NOMBRES + 1, ANCHO_PERSONAL)
+    .setBorder(true, true, true, true, true, true, COLOR.lineaTabla, SB.SOLID);
 
   // Estado en rojo si hay cambios sin enviar
   reglas.push(regla().whenFormulaSatisfied(`=${pendA1}`).setFontColor('#b3261e').setBold(true)
     .setRanges([estadoRg]).build());
-  // Fila naranja si la máquina tiene alerta de molde; contador final en rojo si es menor que el inicial
-  const filaTabla = sh.getRange(FILA_TABLA_INI, COL0, n, ANCHO_TOTAL);
+  // Filas de la tabla: en blanco si no tienen máquina; naranja si la máquina tiene alerta de molde
+  const filaTabla = sh.getRange(FILA_TABLA_INI, COL0, n, ANCHO_TABLA);
   const maqA1 = '$' + letraCol_(maq.col) + FILA_TABLA_INI;
+  reglas.push(regla().whenFormulaSatisfied(`=${maqA1}=""`).setBackground('#ffffff').setRanges([filaTabla]).build());
   reglas.push(regla().whenFormulaSatisfied(fx_(`=ISNUMBER(SEARCH("|"&${maqA1}&"|",${celAlertas}))`))
     .setBackground(COLOR.alerta).setRanges([filaTabla]).build());
-  const ini0 = '$' + letraCol_(CAMPO.contIni.col) + FILA_TABLA_INI;
-  const fin0 = '$' + letraCol_(CAMPO.contFin.col) + FILA_TABLA_INI;
-  reglas.push(regla().whenFormulaSatisfied(fx_(`=AND(ISNUMBER(${ini0}),ISNUMBER(${fin0}),${fin0}<${ini0})`))
-    .setFontColor('#b3261e').setBold(true)
-    .setRanges([sh.getRange(FILA_TABLA_INI, CAMPO.contFin.col, n, CAMPO.contFin.ancho)]).build());
   sh.setConditionalFormatRules(reglas);
 
   caja_(sh, FILA_AYUDA, COL0, 1, ANCHO_TOTAL).setWrap(true).setVerticalAlignment('top').setFontSize(9)
     .setFontColor(COLOR.etiqueta)
     .setValue('Cómo usar: 1) Elige la fecha arriba. 2) Marca las máquinas que trabajarán en el turno (una por una, ' +
-      'todas o por línea); su fila aparece en la tabla, en orden de número. 3) Completa los campos amarillos. ' +
-      '4) Marca «Enviar a Planificación» para guardar todo en la base de datos. Antes de cambiar de fecha envía o ' +
+      'todas o por línea); se agregan a la tabla en orden de número. 3) Completa los campos amarillos de la tabla ' +
+      'y el personal del turno. 4) Marca «Enviar a Planificación» para guardar todo. Antes de cambiar de fecha envía o ' +
       'descarta los cambios. El tonelaje se recuerda por máquina. Turno 3: la fecha es la del día en que inicia el turno (10:30 PM).');
 
-  sh.hideRows(FILA_TABLA_INI, n);
+  sh.hideRows(FILA_TABLA_INI + N_NOMBRES, n - N_NOMBRES);
 }
 
 function ajustarTurno_(sh, t) {
@@ -581,7 +636,8 @@ function proteger_(sh) {
     sh.getRange(CELDA.todas[0], CELDA.todas[1]),
     sh.getRange(ACCION.enviar[0], ACCION.enviar[1]),
     sh.getRange(ACCION.descartar[0], ACCION.descartar[1]),
-    sh.getRange(FILA_TABLA_INI, COL_ENTRADA_INI, ORDEN_TABLA.length, COL_ENTRADA_FIN - COL_ENTRADA_INI + 1),
+    sh.getRange(FILA_TABLA_INI, COL_ENTRADA_INI, N_FILAS_TABLA, COL_ENTRADA_FIN - COL_ENTRADA_INI + 1),
+    sh.getRange(FILA_TABLA_INI, COL_NOMBRE, N_NOMBRES, 4),
   ].concat(CELDA.grupos.map(([f, c]) => sh.getRange(f, c)))
    .concat(maquinas_().map(m => sh.getRange(m.chk.fila, m.chk.col, 1, m.chk.ancho))));
 }
@@ -673,17 +729,47 @@ function leerCasillas_(sh) {
   return out;
 }
 
-/** Muestra solo las filas de la tabla de las máquinas activas (por tramos seguidos). */
-function mostrarFilas_(sh, activa) {
-  let i = 0;
-  while (i < ORDEN_TABLA.length) {
-    const visible = !!activa[ORDEN_TABLA[i]];
-    let j = i;
-    while (j + 1 < ORDEN_TABLA.length && !!activa[ORDEN_TABLA[j + 1]] === visible) j++;
-    if (visible) sh.showRows(FILA_TABLA_INI + i, j - i + 1);
-    else sh.hideRows(FILA_TABLA_INI + i, j - i + 1);
-    i = j + 1;
+/** Lee la tabla de la hoja: { id: { campo: valor } } de las filas que tienen máquina. */
+function leerTabla_(sh) {
+  const out = {};
+  sh.getRange(FILA_TABLA_INI, COL0, N_FILAS_TABLA, ANCHO_TABLA).getValues().forEach(fila => {
+    const id = Number(fila[CAMPO.maquina.col - COL0]);
+    if (!id) return;
+    const v = {};
+    ENTRADAS.forEach(x => v[x.k] = fila[x.col - COL0]);
+    out[id] = v;
+  });
+  return out;
+}
+
+/**
+ * Escribe la tabla con las máquinas activas una debajo de otra, en orden de número.
+ * `valores(id)` da los campos de cada máquina. Muestra al menos las filas del cuadro de personal.
+ */
+function escribirTabla_(sh, activa, valores) {
+  const ids = ORDEN_TABLA.filter(id => activa[id]);
+  const filas = [];
+  for (let i = 0; i < N_FILAS_TABLA; i++) {
+    const fila = new Array(ANCHO_TABLA).fill('');
+    if (i < ids.length) {
+      const v = valores(ids[i]) || {};
+      fila[CAMPO.maquina.col - COL0] = ids[i];
+      ENTRADAS.forEach(x => fila[x.col - COL0] = v[x.k] === undefined ? '' : v[x.k]);
+    }
+    filas.push(fila);
   }
+  sh.getRange(FILA_TABLA_INI, COL0, N_FILAS_TABLA, ANCHO_TABLA).setValues(filas);
+  const visibles = Math.max(ids.length, N_NOMBRES);
+  sh.showRows(FILA_TABLA_INI, visibles);
+  if (visibles < N_FILAS_TABLA) sh.hideRows(FILA_TABLA_INI + visibles, N_FILAS_TABLA - visibles);
+}
+
+/** Campos de una máquina desde su registro de Planificación, con el tonelaje guardado si falta. */
+function valoresRegistro_(r, ton, id) {
+  const v = {};
+  ENTRADAS.forEach(x => v[x.k] = r ? r.valores[IDX[x.k]] : '');
+  if (vacio_(v.ton) && ton[id] !== undefined) v.ton = ton[id];
+  return v;
 }
 
 /** Casillas «todas» y «Línea N» marcadas solo si todas sus máquinas están activas. */
@@ -695,21 +781,16 @@ function actualizarGrupos_(sh, activa) {
 }
 
 /**
- * Tras marcar o desmarcar casillas: muestra/oculta las filas de la tabla y, en las filas
- * activas sin tonelaje, pone el tonelaje guardado de la máquina.
+ * Tras marcar o desmarcar casillas: vuelve a escribir la tabla con las máquinas activas en orden.
+ * Lo ya escrito en la tabla se conserva; una máquina que se agrega trae lo último enviado para
+ * esta fecha y turno (o al menos su tonelaje).
  */
 function aplicarSeleccion_(sh, t) {
   const activa = leerCasillas_(sh);
+  const actual = leerTabla_(sh);
+  const rec = registros_(leerPlan_(), claveFecha_(sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1]).getValue()), t);
   const ton = tonelajes_();
-  const c = CAMPO.ton.col;
-  const rg = sh.getRange(FILA_TABLA_INI, c, ORDEN_TABLA.length, 1);
-  const valores = rg.getValues();
-  let cambio = false;
-  ORDEN_TABLA.forEach((id, i) => {
-    if (activa[id] && vacio_(valores[i][0]) && ton[id] !== undefined) { valores[i][0] = ton[id]; cambio = true; }
-  });
-  if (cambio) rg.setValues(valores);
-  mostrarFilas_(sh, activa);
+  escribirTabla_(sh, activa, id => actual[id] || valoresRegistro_(rec[String(id)], ton, id));
   actualizarGrupos_(sh, activa);
 }
 
@@ -736,17 +817,10 @@ function cargar_(sh, t, datos) {
   if (si.length) sh.getRangeList(si).check();
   if (no.length) sh.getRangeList(no).uncheck();
 
-  const ancho = COL_ENTRADA_FIN - COL_ENTRADA_INI + 1;
-  sh.getRange(FILA_TABLA_INI, COL_ENTRADA_INI, ORDEN_TABLA.length, ancho).setValues(ORDEN_TABLA.map(id => {
-    const fila = new Array(ancho).fill('');
-    const r = rec[String(id)];
-    if (r) ENTRADAS.forEach(x => fila[x.col - COL_ENTRADA_INI] = r.valores[IDX[x.k]]);
-    const iTon = CAMPO.ton.col - COL_ENTRADA_INI;
-    if (r && vacio_(fila[iTon]) && ton[id] !== undefined) fila[iTon] = ton[id];
-    return fila;
-  }));
-
-  mostrarFilas_(sh, activa);
+  escribirTabla_(sh, activa, id => valoresRegistro_(rec[String(id)], ton, id));
+  const personal = leerPersonal_(claveFecha_(fechaV), t);
+  sh.getRange(FILA_TABLA_INI, COL_NOMBRE, N_NOMBRES, 1)
+    .setValues((personal ? personal.nombres : new Array(N_NOMBRES).fill('')).map(x => [x]));
   actualizarGrupos_(sh, activa);
   pintarPlano_(sh, t, datos);
   sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).setValue(false);
@@ -784,17 +858,8 @@ function enviar_(sh, t) {
   }
 
   const activa = leerCasillas_(sh);
-  const tabla = sh.getRange(FILA_TABLA_INI, COL0, ORDEN_TABLA.length, ANCHO_TOTAL).getValues();
-  const filaDe = id => tabla[ORDEN_TABLA.indexOf(id)];
-  const val = (id, k) => filaDe(id)[CAMPO[k].col - COL0];
-
-  const errores = ORDEN_TABLA.filter(id => activa[id] && typeof val(id, 'contIni') === 'number' &&
-    typeof val(id, 'contFin') === 'number' && val(id, 'contFin') < val(id, 'contIni'));
-  if (errores.length) {
-    ss.toast(`Máquina(s) ${errores.join(', ')}: el contador final es menor que el inicial. Corrígelo y vuelve a enviar.`,
-      'No se envió', 8);
-    return;
-  }
+  const tabla = leerTabla_(sh);
+  const val = (id, k) => (tabla[id] && tabla[id][k] !== undefined) ? tabla[id][k] : '';
 
   const plan = ss.getSheetByName(HOJA_PLAN);
   const rec = registros_(leerPlan_(), clave, t);
@@ -832,6 +897,10 @@ function enviar_(sh, t) {
     if (activa[id] && typeof ton === 'number' && i >= 0) listas.getRange(i + 2, 2).setValue(ton);
   });
 
+  // Personal del turno
+  guardarPersonal_(fechaV, clave, t,
+    sh.getRange(FILA_TABLA_INI, COL_NOMBRE, N_NOMBRES, 1).getValues().map(r => r[0]));
+
   sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).setValue(false);
   sh.getRange(CELDA.fechaCargada[0], CELDA.fechaCargada[1]).setValue(fechaV);
   pintarTodos_(leerPlan_());
@@ -840,6 +909,33 @@ function enviar_(sh, t) {
   sh.getRange(ACCION.estado[0], ACCION.estado[1]).setValue(`✓ Enviado a Planificación a las ${hora}: ${total} máquina(s)` +
     (borrar.length ? `, ${borrar.length} quitada(s).` : '.'));
   ss.toast(`${nuevas.length} nueva(s), ${actualizadas} actualizada(s), ${borrar.length} quitada(s).`, 'Enviado a Planificación', 5);
+}
+
+/** Personal guardado para una fecha y turno: { fila, nombres } o null. */
+function leerPersonal_(clave, t) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(HOJA_PERSONAL);
+  if (!sh || !clave || sh.getLastRow() < 2) return null;
+  const v = sh.getRange(2, 1, sh.getLastRow() - 1, COLS_PERSONAL.length).getValues();
+  for (let i = 0; i < v.length; i++) {
+    if (claveFecha_(v[i][0]) === clave && Number(v[i][1]) === t) return { fila: i + 2, nombres: v[i].slice(2) };
+  }
+  return null;
+}
+
+/** Crea o actualiza la fila de personal de una fecha y turno (la borra si no hay nombres). */
+function guardarPersonal_(fechaV, clave, t, nombres) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(HOJA_PERSONAL);
+  if (!sh) return;
+  const prev = leerPersonal_(clave, t);
+  const hay = nombres.some(x => !vacio_(x));
+  if (!hay) {
+    if (prev) sh.deleteRow(prev.fila);
+    return;
+  }
+  const fila = [fechaV, t].concat(nombres);
+  const destino = prev ? prev.fila : Math.max(sh.getLastRow(), 1) + 1;
+  if (destino > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 200);
+  sh.getRange(destino, 1, 1, fila.length).setValues([fila]);
 }
 
 function pintarTodos_(datos) {
