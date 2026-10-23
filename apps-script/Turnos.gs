@@ -31,10 +31,10 @@ const HOJA_PERSONAL = 'Personal por turno';
 const HOJA_LISTAS = 'Listas';
 
 const TURNOS = {
-  1: { hoja: 'Turno 1', horario: '6:00 AM – 2:30 PM',  descanso: '1 h entre 9:30 AM y 12:00 PM', horas: 7.5, inicioMin: 360,  cambioMolde: false, color: '#f4a261' },
-  2: { hoja: 'Turno 2', horario: '2:30 PM – 10:30 PM', descanso: '1 h entre 5:00 PM y 7:00 PM',  horas: 7,   inicioMin: 870,  cambioMolde: false, color: '#2a9d8f' },
-  3: { hoja: 'Turno 3', horario: '10:30 PM – 6:00 AM', descanso: '1 h entre 2:00 AM y 3:00 AM',  horas: 6.5, inicioMin: 1350, cambioMolde: false, color: '#264653' },
-  4: { hoja: 'Turno 4', horario: '7:00 AM – 4:00 PM',  descanso: '1 h de 12:00 PM a 1:00 PM',    horas: 8,   inicioMin: 420,  cambioMolde: true,  color: '#1f6fd1' },
+  1: { hoja: 'Turno 1', horario: '6:00 AM – 2:30 PM',  descanso: '1 h entre 9:30 AM y 12:00 PM', horas: 7.5, color: '#f4a261' },
+  2: { hoja: 'Turno 2', horario: '2:30 PM – 10:30 PM', descanso: '1 h entre 5:00 PM y 7:00 PM',  horas: 7,   color: '#2a9d8f' },
+  3: { hoja: 'Turno 3', horario: '10:30 PM – 6:00 AM', descanso: '1 h entre 2:00 AM y 3:00 AM',  horas: 6.5, color: '#264653' },
+  4: { hoja: 'Turno 4', horario: '7:00 AM – 4:00 PM',  descanso: '1 h de 12:00 PM a 1:00 PM',    horas: 8,   color: '#1f6fd1', standard: true },
 };
 
 // Columnas de la hoja Planificación (A:M)
@@ -64,7 +64,7 @@ const GRUPOS = [
 ];
 
 const COLOR = {
-  inactiva: '#eef1f5', activa: '#b9e4c1', alerta: '#ffc98a',
+  inactiva: '#eef1f5', activa: '#b9e4c1',
   borde: '#1f2a37', texto: '#1f2a37', etiqueta: '#5b6676',
   cabecera: '#1f2a37', entrada: '#fff8dc', fijo: '#f1f3f6', lineaTabla: '#d0d5dd', enviar: '#1f6fd1',
 };
@@ -95,7 +95,6 @@ const CELDA = {
   fechaSel: [2, U(3)], activas: [2, U(27)], horas: [3, U(21)], todas: [3, U(25)],
   grupos: [[4, U(25)], [4, U(29)], [4, U(33)]],
   // Celdas auxiliares en la columna A (texto invisible)
-  alertas: [FILA_PLANO_FIN + 2, 1],     // máquinas con alerta de molde: "|203|215|"
   pendiente: [FILA_PLANO_FIN + 3, 1],   // TRUE si hay cambios sin enviar
   fechaCargada: [FILA_PLANO_FIN + 4, 1], // fecha cuyos datos muestra la hoja
 };
@@ -441,7 +440,7 @@ function construirHojaTurno_(sh) {
   sh.setColumnWidths(COL0, ULTIMA_COL - COL0, ANCHO_UNIDAD);
   sh.setColumnWidth(ULTIMA_COL, 16);
   const alto = { 1: 34, 2: 28, 3: 24, 4: 24, 5: 24, [FILA_PLANO_FIN + 1]: 8,
-    [CELDA.alertas[0]]: 6, [CELDA.pendiente[0]]: 6, [CELDA.fechaCargada[0]]: 6,
+    [FILA_PLANO_FIN + 2]: 6, [CELDA.pendiente[0]]: 6, [CELDA.fechaCargada[0]]: 6,
     [FILA_TABLA_TITULO]: 28, [FILA_ACCIONES]: 32, [FILA_TABLA_CAB]: 34, [FILA_TABLA_FIN + 1]: 10, [FILA_AYUDA]: 36 };
   for (let f = FILA_PLANO_INI; f <= FILA_PLANO_FIN; f++) {
     alto[f] = (f - FILA_PLANO_INI) % 3 === 2 ? ALTO_SEPARADOR : ALTO_FILA_PLANO;
@@ -452,9 +451,7 @@ function construirHojaTurno_(sh) {
     .setFontColor(COLOR.texto).setVerticalAlignment('middle').setBackground('#ffffff');
 
   // ---- Encabezado ----
-  caja_(sh, 1, U(1), 1, 36).setFontSize(16).setFontWeight('bold');
-  caja_(sh, 1, U(38), 4, 8).setFontSize(10).setFontWeight('bold').setHorizontalAlignment('center').setWrap(true)
-    .setBorder(true, true, true, true, null, null, COLOR.borde, SB.SOLID);
+  caja_(sh, 1, U(1), 1, N_UNIDADES).setFontSize(16).setFontWeight('bold');
 
   etiqueta_(caja_(sh, 2, U(1), 1, 2), 'FECHA');
   const sel = caja_(sh, CELDA.fechaSel[0], CELDA.fechaSel[1], 1, ANCHO_FECHA);
@@ -472,8 +469,7 @@ function construirHojaTurno_(sh) {
   const activas = caja_(sh, CELDA.activas[0], CELDA.activas[1], 1, 3).setFontWeight('bold').setFontSize(12);
 
   // Leyenda
-  [[U(1), COLOR.activa, 'Activa (trabaja)'], [U(6), COLOR.inactiva, 'Sin planificar'],
-   [U(11), COLOR.alerta, 'Alerta de molde']].forEach(([c, col, txt]) => {
+  [[U(1), COLOR.activa, 'Activa (trabaja)'], [U(6), COLOR.inactiva, 'Sin planificar']].forEach(([c, col, txt]) => {
     sh.getRange(3, c).setBackground(col).setBorder(true, true, true, true, null, null, COLOR.borde, SB.SOLID);
     caja_(sh, 3, c + 1, 1, 3).setValue(txt).setFontSize(9).setFontColor(COLOR.etiqueta);
   });
@@ -515,15 +511,11 @@ function construirHojaTurno_(sh) {
     .setFontSize(14);
 
   // Colores del plano con formato condicional (se ven al instante al marcar una casilla).
-  // Prioridad: alerta de molde > activa > sin planificar (fondo base).
   const abs = r => r.getA1Notation().replace(/^([A-Z]+)(\d+)$/, '$$$1$$$2');
-  const celAlertas = abs(sh.getRange(CELDA.alertas[0], CELDA.alertas[1]));
   const regla = SpreadsheetApp.newConditionalFormatRule;
   const reglas = [];
   ms.forEach((m, i) => {
     const chk = abs(casilla_(sh, m));
-    reglas.push(regla().whenFormulaSatisfied(fx_(`=AND(${chk},ISNUMBER(SEARCH("|${m.id}|",${celAlertas})))`))
-      .setBackground(COLOR.alerta).setRanges([bloques[i]]).build());
     reglas.push(regla().whenFormulaSatisfied(`=${chk}`)
       .setBackground(COLOR.activa).setRanges([bloques[i]]).build());
   });
@@ -534,7 +526,7 @@ function construirHojaTurno_(sh) {
     .setFormula(fx_(`=COUNTIF(${plano},TRUE)&" / ${ORDEN_TABLA.length}"`));
   activas.setHorizontalAlignment('left');
 
-  [CELDA.alertas, CELDA.pendiente, CELDA.fechaCargada].forEach(([f, c]) => sh.getRange(f, c)
+  [CELDA.pendiente, CELDA.fechaCargada].forEach(([f, c]) => sh.getRange(f, c)
     .setFontColor('#ffffff').setFontSize(6).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP));
   sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).setValue(false);
 
@@ -597,12 +589,10 @@ function construirHojaTurno_(sh) {
   // Estado en rojo si hay cambios sin enviar
   reglas.push(regla().whenFormulaSatisfied(`=${pendA1}`).setFontColor('#b3261e').setBold(true)
     .setRanges([estadoRg]).build());
-  // Filas de la tabla: en blanco si no tienen máquina; naranja si la máquina tiene alerta de molde
+  // Filas de la tabla en blanco si no tienen máquina
   const filaTabla = sh.getRange(FILA_TABLA_INI, COL0, n, ANCHO_TABLA);
   const maqA1 = '$' + letraCol_(maq.col) + FILA_TABLA_INI;
   reglas.push(regla().whenFormulaSatisfied(`=${maqA1}=""`).setBackground('#ffffff').setRanges([filaTabla]).build());
-  reglas.push(regla().whenFormulaSatisfied(fx_(`=ISNUMBER(SEARCH("|"&${maqA1}&"|",${celAlertas}))`))
-    .setBackground(COLOR.alerta).setRanges([filaTabla]).build());
   sh.setConditionalFormatRules(reglas);
 
   caja_(sh, FILA_AYUDA, COL0, 1, ANCHO_TOTAL).setWrap(true).setVerticalAlignment('top').setFontSize(9)
@@ -617,13 +607,10 @@ function construirHojaTurno_(sh) {
 
 function ajustarTurno_(sh, t) {
   const T = TURNOS[t];
-  sh.getRange(1, U(1)).setValue(`MANAPLAS · PLANIFICACIÓN DE PRODUCCIÓN · ${T.hoja.toUpperCase()}${T.cambioMolde ? ' (STANDARD)' : ''}`);
+  sh.getRange(1, U(1)).setValue(`MANAPLAS · PLANIFICACIÓN DE PRODUCCIÓN · ${T.hoja.toUpperCase()}${T.standard ? ' (STANDARD)' : ''}`);
   sh.getRange(2, U(10)).setValue(T.horario);
   sh.getRange(2, U(18)).setValue(T.descanso);
   sh.getRange(CELDA.horas[0], CELDA.horas[1]).setValue(T.horas);
-  sh.getRange(1, U(38))
-    .setValue(T.cambioMolde ? 'TURNO STANDARD\nCambio de molde permitido' : 'SOLO PRODUCCIÓN\nNo se cambian moldes')
-    .setBackground(T.cambioMolde ? '#dcebfb' : '#fde9d6');
   sh.setTabColor(T.color);
 }
 
@@ -653,7 +640,6 @@ function turnoDeHoja_(nombre) {
   for (const t in TURNOS) if (TURNOS[t].hoja === nombre) return Number(t);
   return 0;
 }
-function norm_(s) { return String(s == null ? '' : s).trim().toUpperCase(); }
 function vacio_(v) { return v === '' || v === null; }
 
 function ultimaFilaPlan_(sh) {
@@ -672,7 +658,7 @@ function leerPlan_() {
   sh.getRange(2, 1, ult - 1, N_PLAN).getValues().forEach((r, i) => {
     const fecha = claveFecha_(r[IDX.fecha]), turno = Number(r[IDX.turno]), maq = String(r[IDX.maquina]).trim();
     if (!fecha || !TURNOS[turno] || !maq) return;
-    out.push({ fila: i + 2, fecha: fecha, turno: turno, maquina: maq, ref: String(r[IDX.referencia]).trim(), valores: r });
+    out.push({ fila: i + 2, fecha: fecha, turno: turno, maquina: maq, valores: r });
   });
   return out;
 }
@@ -682,43 +668,6 @@ function registros_(datos, clave, t) {
   const rec = {};
   if (clave) datos.forEach(r => { if (r.fecha === clave && r.turno === t) rec[r.maquina] = r; });
   return rec;
-}
-
-/** Minutos absolutos de inicio del turno (para ordenar cronológicamente). */
-function tiempo_(r) {
-  const p = r.fecha.split('-').map(Number);
-  return Date.UTC(p[0], p[1] - 1, p[2]) / 60000 + TURNOS[r.turno].inicioMin;
-}
-
-/**
- * En los turnos 1, 2 y 3 no se cambian moldes: si la referencia difiere de la del
- * último turno anterior de esa misma máquina, devuelve ese registro anterior.
- */
-function alertaMolde_(datos, r) {
-  if (TURNOS[r.turno].cambioMolde) return null;
-  const ref = norm_(r.ref);
-  if (!ref) return null;
-  const t0 = tiempo_(r);
-  let prev = null, tPrev = -Infinity;
-  datos.forEach(o => {
-    if (o.maquina !== r.maquina || !norm_(o.ref)) return;
-    const to = tiempo_(o);
-    if (to < t0 && to > tPrev) { prev = o; tPrev = to; }
-  });
-  return (prev && norm_(prev.ref) !== ref) ? prev : null;
-}
-
-/**
- * Actualiza la lista de máquinas con alerta de molde. Los colores del plano y de la tabla
- * los pone el formato condicional (casillas y esta lista).
- */
-function pintarPlano_(sh, t, datos) {
-  const clave = claveFecha_(sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1]).getValue());
-  const alertas = [];
-  if (clave) datos.forEach(r => {
-    if (r.fecha === clave && r.turno === t && alertaMolde_(datos, r)) alertas.push(r.maquina);
-  });
-  sh.getRange(CELDA.alertas[0], CELDA.alertas[1]).setValue(alertas.length ? '|' + alertas.join('|') + '|' : '');
 }
 
 /** Estado actual de las casillas del plano: { id: true/false }. */
@@ -802,7 +751,7 @@ function marcarPendiente_(sh) {
 
 /**
  * Carga en la hoja lo guardado en Planificación para la fecha y turno: casillas, tabla,
- * filas visibles y alertas. Descarta los cambios sin enviar.
+ * filas visibles y personal. Descarta los cambios sin enviar.
  */
 function cargar_(sh, t, datos) {
   const fechaV = sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1]).getValue();
@@ -822,7 +771,6 @@ function cargar_(sh, t, datos) {
   sh.getRange(FILA_TABLA_INI, COL_NOMBRE, N_NOMBRES, 1)
     .setValues((personal ? personal.nombres : new Array(N_NOMBRES).fill('')).map(x => [x]));
   actualizarGrupos_(sh, activa);
-  pintarPlano_(sh, t, datos);
   sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).setValue(false);
   sh.getRange(CELDA.fechaCargada[0], CELDA.fechaCargada[1]).setValue(fechaV);
   sh.getRange(ACCION.estado[0], ACCION.estado[1]).setValue(si.length
@@ -903,7 +851,6 @@ function enviar_(sh, t) {
 
   sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).setValue(false);
   sh.getRange(CELDA.fechaCargada[0], CELDA.fechaCargada[1]).setValue(fechaV);
-  pintarTodos_(leerPlan_());
   const hora = Utilities.formatDate(new Date(), tz(), 'h:mm a');
   const total = nuevas.length + actualizadas;
   sh.getRange(ACCION.estado[0], ACCION.estado[1]).setValue(`✓ Enviado a Planificación a las ${hora}: ${total} máquina(s)` +
@@ -938,20 +885,12 @@ function guardarPersonal_(fechaV, clave, t, nombres) {
   sh.getRange(destino, 1, 1, fila.length).setValues([fila]);
 }
 
-function pintarTodos_(datos) {
-  [1, 2, 3, 4].forEach(t => {
-    const sh = SpreadsheetApp.getActive().getSheetByName(TURNOS[t].hoja);
-    if (sh) pintarPlano_(sh, t, datos);
-  });
-}
-
-/** Recarga las hojas de turno desde Planificación (las que tienen cambios sin enviar solo actualizan alertas). */
+/** Recarga las hojas de turno desde Planificación (salvo las que tienen cambios sin enviar). */
 function actualizarTodo_() {
   const datos = leerPlan_();
   [1, 2, 3, 4].forEach(t => {
     const sh = SpreadsheetApp.getActive().getSheetByName(TURNOS[t].hoja);
     if (!sh) return;
-    if (sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).getValue() === true) pintarPlano_(sh, t, datos);
-    else cargar_(sh, t, datos);
+    if (sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).getValue() !== true) cargar_(sh, t, datos);
   });
 }
