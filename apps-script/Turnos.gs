@@ -55,24 +55,24 @@ const COLOR = {
 };
 
 // ======================= CUADRÍCULA =======================
-// Columna A = margen. El plano usa "unidades" de 29 px desde la columna B (58 unidades de ancho):
-//   1–43  Líneas 2 (201–218) y 1 (101–124) · 45–50  Máquinas 125–143 · 52–57  Soplado
+// Columna A = margen. El plano usa "unidades" de 28 px desde la columna B (60 unidades de ancho):
+//   1–43  Líneas 2 (201–218) y 1 (101–124) · 45–53  Máquinas 125–143 · 55–60  Soplado
 // Todas las máquinas tienen el mismo tamaño (3 × 2 celdas) y el plano (filas 1–25) cabe
 // en una pantalla Full HD sin desplazarse.
-const ANCHO_UNIDAD = 29;
+const ANCHO_UNIDAD = 28;
 const COL0 = 2;
-const N_UNIDADES = 58;
+const N_UNIDADES = 60;
 const U = u => COL0 + u - 1;
-const COL_125 = U(45);              // columnas de las máquinas 125–134 y 135–143
-const S = u => U(51) + u;           // zona Soplado: unidades 1..6
+const COL_125 = U(45);              // columnas de las máquinas 125–131, 132–137 y 138–143
+const S = u => U(54) + u;           // zona Soplado: unidades 1..6
 const ULTIMA_COL = U(N_UNIDADES) + 1; // columna de margen derecho
 const ANCHO_TOTAL = N_UNIDADES;
 // Las máquinas van en "franjas" de 3 filas: número, casilla y un separador fino, así el espacio
-// entre filas de máquinas es siempre el mismo. Hay 10 franjas (filas 6–35).
+// entre filas de máquinas es siempre el mismo. Hay 7 franjas (filas 6–26).
 const FILA_PLANO_INI = 6;
 const franja_ = k => FILA_PLANO_INI + 3 * k;
-const FILA_PLANO_FIN = franja_(9) + 1;
-const ALTO_FILA_PLANO = 24, ALTO_SEPARADOR = 8;
+const FILA_PLANO_FIN = franja_(6) + 1;
+const ALTO_FILA_PLANO = 28, ALTO_SEPARADOR = 8;
 
 const CELDA = {
   fechaSel: [2, U(4)], activas: [2, U(36)], horas: [3, U(28)], todas: [3, U(33)],
@@ -111,8 +111,10 @@ function maquinas_() {
   // Bloque 101–124 en dos filas: 101–112 y 113–124
   // (la franja 2 queda para el título «MÁQUINAS 101–124»)
   for (let i = 0; i < 24; i++) q(101 + i, franja_(3 + Math.floor(i / 12)), U(3 * (i % 12) + 1));
-  // Bloque 125–143 en dos columnas: 125–134 y 135–143
-  for (let k = 0; k < 19; k++) q(125 + k, franja_(k % 10), COL_125 + 3 * Math.floor(k / 10));
+  // Bloque 125–143 en tres columnas: 125–131, 132–137 y 138–143
+  [[125, 131], [132, 137], [138, 143]].forEach(([desde, hasta], c) => {
+    for (let id = desde; id <= hasta; id++) q(id, franja_(id - desde), COL_125 + 3 * c);
+  });
   // Soplado
   q(306, franja_(0), S(4));
   q(302, franja_(1), S(1)); q(305, franja_(1), S(4));
@@ -139,13 +141,13 @@ const FILAS_HOJA = FILA_AYUDA + 1;
 
 const ACCION = { enviar: [FILA_ACCIONES, U(1)], descartar: [FILA_ACCIONES, U(12)], estado: [FILA_ACCIONES, U(20)] };
 
-// k = campo de Planificación; ancho en unidades (deben sumar N_UNIDADES = 58).
+// k = campo de Planificación; ancho en unidades (deben sumar N_UNIDADES = 60).
 const CAMPOS_TABLA = [
   { k: 'maquina',    titulo: 'MÁQ.',              ancho: 2 },
   { k: 'ton',        titulo: 'Ton',               ancho: 2,  entrada: true, formato: '0',     numero: true },
   { k: 'op',         titulo: 'OP',                ancho: 4,  entrada: true, formato: '@' },
-  { k: 'producto',   titulo: 'PRODUCTO',          ancho: 11, entrada: true, formato: '@' },
-  { k: 'referencia', titulo: 'REFERENCIA',        ancho: 6,  entrada: true, formato: '@' },
+  { k: 'producto',   titulo: 'PRODUCTO',          ancho: 12, entrada: true, formato: '@' },
+  { k: 'referencia', titulo: 'REFERENCIA',        ancho: 7,  entrada: true, formato: '@' },
   { k: 'color',      titulo: 'COLOR',             ancho: 4,  entrada: true, formato: '@' },
   { k: 'material',   titulo: 'MATERIAL',          ancho: 5,  entrada: true, formato: '@' },
   { k: 'cicloIdeal', titulo: 'CICLO IDEAL (s)',   ancho: 4,  entrada: true, formato: '0.0',   numero: true },
@@ -403,8 +405,8 @@ function construirHojaTurno_(sh) {
     .setFontColor(COLOR.texto).setVerticalAlignment('middle').setBackground('#ffffff');
 
   // ---- Encabezado ----
-  caja_(sh, 1, U(1), 1, 47).setFontSize(16).setFontWeight('bold');
-  caja_(sh, 1, U(49), 4, 10).setFontSize(10).setFontWeight('bold').setHorizontalAlignment('center').setWrap(true)
+  caja_(sh, 1, U(1), 1, 49).setFontSize(16).setFontWeight('bold');
+  caja_(sh, 1, U(51), 4, 10).setFontSize(10).setFontWeight('bold').setHorizontalAlignment('center').setWrap(true)
     .setBorder(true, true, true, true, null, null, COLOR.borde, SB.SOLID);
 
   etiqueta_(caja_(sh, 2, U(1), 1, 3), 'FECHA');
@@ -447,7 +449,7 @@ function construirHojaTurno_(sh) {
   // ---- Plano ----
   seccion_(caja_(sh, 5, U(1), 1, 20), 'MÁQUINAS 201–218');
   seccion_(caja_(sh, franja_(2) + 1, U(1), 1, 20), 'MÁQUINAS 101–124');
-  seccion_(caja_(sh, 5, COL_125, 1, 6), 'MÁQUINAS 125–143');
+  seccion_(caja_(sh, 5, COL_125, 1, 9), 'MÁQUINAS 125–143');
   seccion_(caja_(sh, 5, S(1), 1, 6), ' SOPLADO');
   sh.getRange(5, S(1), franja_(2) + 2 - 5, 6).setBorder(true, true, true, true, null, null, '#7a8594', SB.DASHED);
 
@@ -576,7 +578,7 @@ function ajustarTurno_(sh, t) {
   sh.getRange(2, U(13)).setValue(T.horario);
   sh.getRange(2, U(24)).setValue(T.descanso);
   sh.getRange(CELDA.horas[0], CELDA.horas[1]).setValue(T.horas);
-  sh.getRange(1, U(49))
+  sh.getRange(1, U(51))
     .setValue(T.cambioMolde ? 'TURNO STANDARD\nCambio de molde permitido' : 'SOLO PRODUCCIÓN\nNo se cambian moldes')
     .setBackground(T.cambioMolde ? '#dcebfb' : '#fde9d6');
   sh.setTabColor(T.color);
