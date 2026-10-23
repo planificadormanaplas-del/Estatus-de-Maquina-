@@ -23,7 +23,6 @@
  */
 
 // ======================= CONFIGURACIÓN =======================
-const META_MAQUINAS = 20;          // máquinas que deberían trabajar por turno
 const HOJA_PLAN = 'Planificación';
 const HOJA_LISTAS = 'Listas';
 
@@ -426,7 +425,7 @@ function construirHojaTurno_(sh) {
   etiqueta_(caja_(sh, 2, U(16), 1, 2), 'DESCANSO');
   caja_(sh, 2, U(18), 1, 6).setFontSize(11);
   etiqueta_(caja_(sh, 2, U(24), 1, 3), 'MÁQ. ACTIVAS');
-  const activas = caja_(sh, CELDA.activas[0], CELDA.activas[1], 1, 3).setFontWeight('bold').setFontSize(12).setFontColor('#b26a00');
+  const activas = caja_(sh, CELDA.activas[0], CELDA.activas[1], 1, 3).setFontWeight('bold').setFontSize(12);
 
   // Leyenda
   [[U(1), COLOR.activa, 'Activa (trabaja)'], [U(6), COLOR.inactiva, 'Sin planificar'],
@@ -495,15 +494,11 @@ function construirHojaTurno_(sh) {
       .setBackground(COLOR.activa).setRanges([bloques[i]]).build());
   });
 
-  // Contador de máquinas activas (cuenta las casillas marcadas del plano)
+  // Contador de máquinas activas: casillas marcadas del plano / total de máquinas
   const plano = sh.getRange(FILA_PLANO_INI, U(1), FILA_PLANO_FIN - FILA_PLANO_INI + 1, N_UNIDADES).getA1Notation();
-  const cuenta = `COUNTIF(${plano},TRUE)`;
-  sh.getRange(CELDA.activas[0], CELDA.activas[1]).setFormula(fx_(`=${cuenta}&" / ${META_MAQUINAS}"`));
+  sh.getRange(CELDA.activas[0], CELDA.activas[1])
+    .setFormula(fx_(`=COUNTIF(${plano},TRUE)&" / ${ORDEN_TABLA.length}"`));
   activas.setHorizontalAlignment('left');
-  reglas.push(regla().whenFormulaSatisfied(fx_(`=${cuenta}>${META_MAQUINAS}`))
-    .setFontColor('#b3261e').setRanges([activas]).build());
-  reglas.push(regla().whenFormulaSatisfied(fx_(`=${cuenta}=${META_MAQUINAS}`))
-    .setFontColor('#1b7a3a').setRanges([activas]).build());
 
   [CELDA.alertas, CELDA.pendiente, CELDA.fechaCargada].forEach(([f, c]) => sh.getRange(f, c)
     .setFontColor('#ffffff').setFontSize(6).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP));
