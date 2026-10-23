@@ -19,8 +19,9 @@
  *   · Casilla de cada máquina        → la marca como activa y agrega su fila a la tabla.
  *   · «Marcar / desmarcar todas»     → todas las máquinas. «Línea 1/2/3» → solo esa línea.
  *   · Tabla de máquinas activas      → una fila por máquina activa, en orden de número, con
- *                                      sus operarios y técnico de inyección.
- *   · Personal del turno             → supervisor, SHA, calidad, mantenimiento y empaque.
+ *                                      sus operarios.
+ *   · Personal del turno             → puestos de la propuesta de turnos (distintos en el Turno 4).
+ *   · Resumen (fila 4)               → lo asignado frente a lo que pide la propuesta.
  *   · «Enviar a Planificación»       → guarda máquinas y personal de la fecha y el turno.
  *   · «Descartar cambios»            → vuelve a lo último enviado para esa fecha y turno.
  */
@@ -31,30 +32,46 @@ const HOJA_PERSONAL = 'Personal por turno';
 const HOJA_LISTAS = 'Listas';
 
 const TURNOS = {
-  1: { hoja: 'Turno 1', horario: '6:00 AM – 2:30 PM',  descanso: '1 h entre 9:30 AM y 12:00 PM', horas: 7.5, color: '#f4a261' },
-  2: { hoja: 'Turno 2', horario: '2:30 PM – 10:30 PM', descanso: '1 h entre 5:00 PM y 7:00 PM',  horas: 7,   color: '#2a9d8f' },
-  3: { hoja: 'Turno 3', horario: '10:30 PM – 6:00 AM', descanso: '1 h entre 2:00 AM y 3:00 AM',  horas: 6.5, color: '#264653' },
-  4: { hoja: 'Turno 4', horario: '7:00 AM – 4:00 PM',  descanso: '1 h de 12:00 PM a 1:00 PM',    horas: 8,   color: '#1f6fd1', standard: true },
+  1: { hoja: 'Turno 1', horario: '6:00 AM – 2:30 PM',  descanso: '1 h entre 9:30 AM y 12:00 PM', horas: 7.5, color: '#f4a261',
+       personal: 'produccion', metas: { maquinas: 12, operarios: 16, produccion: 21, tecnicos: 6 } },
+  2: { hoja: 'Turno 2', horario: '2:30 PM – 10:30 PM', descanso: '1 h entre 5:00 PM y 7:00 PM',  horas: 8,   color: '#2a9d8f',
+       personal: 'produccion', metas: { maquinas: 12, operarios: 16, produccion: 21, tecnicos: 6 } },
+  3: { hoja: 'Turno 3', horario: '10:30 PM – 6:00 AM', descanso: '1 h entre 2:00 AM y 3:00 AM',  horas: 6.5, color: '#264653',
+       personal: 'produccion', metas: { maquinas: 12, operarios: 16, produccion: 21, tecnicos: 6 } },
+  4: { hoja: 'Turno 4', horario: '7:00 AM – 4:00 PM',  descanso: '1 h de 12:00 PM a 1:00 PM',    horas: 8,   color: '#1f6fd1',
+       personal: 'adicional', metas: { tecnicos: 5 }, standard: true },
 };
 
 // Columnas de la hoja Planificación (A:M)
 const COLS_PLAN = ['Fecha', 'Turno', 'Máquina', 'Ton', 'OP', 'Producto', 'Referencia', 'Color', 'Material',
-  'Operario 1', 'Operario 2', 'Operario 3', 'Técnico de inyección'];
+  'Operario 1', 'Operario 2', 'Operario 3'];
 const IDX = { fecha: 0, turno: 1, maquina: 2, ton: 3, op: 4, producto: 5, referencia: 6, color: 7, material: 8,
-  operario1: 9, operario2: 10, operario3: 11, tecnico: 12 };
+  operario1: 9, operario2: 10, operario3: 11 };
 const N_PLAN = COLS_PLAN.length;
 
-// Personal del turno (cuadro al lado de la tabla y hoja «Personal por turno»)
-const PUESTOS = [
-  { titulo: 'Supervisor', n: 1 },
-  { titulo: 'Personal de SHA', n: 1 },
-  { titulo: 'Personal de Calidad', n: 1 },
-  { titulo: 'Personal de Mantenimiento', n: 6 },
-  { titulo: 'Personal de Empaque', n: 1 },
-];
-const COLS_PERSONAL = ['Fecha', 'Turno'].concat(...PUESTOS.map(p => p.n === 1 ? [p.titulo]
-  : Array.from({ length: p.n }, (_, i) => `${p.titulo} ${i + 1}`)));
-const N_NOMBRES = COLS_PERSONAL.length - 2;
+// Personal del turno según la propuesta de turnos (cuadro al lado de la tabla).
+// grupo: 'produccion' (cuenta como personal de producción) o 'tecnico' (personal técnico).
+const PERSONAL = {
+  produccion: [   // Turnos 1, 2 y 3
+    { titulo: 'Supervisor de turno', n: 1, grupo: 'produccion' },
+    { titulo: 'Asistente de producción', n: 2, grupo: 'produccion' },
+    { titulo: 'Puente y distribución (montacargas)', n: 2, grupo: 'produccion' },
+    { titulo: 'Técnico de inyección', n: 2, grupo: 'tecnico' },
+    { titulo: 'Técnico eléctrico', n: 1, grupo: 'tecnico' },
+    { titulo: 'Técnico hidráulico', n: 1, grupo: 'tecnico' },
+    { titulo: 'Asistente de inyección', n: 2, grupo: 'tecnico' },
+  ],
+  adicional: [    // Turno 4
+    { titulo: 'Técnico de molde', n: 2, grupo: 'tecnico' },
+    { titulo: 'Molino', n: 1, grupo: 'tecnico' },
+    { titulo: 'Pintura / Mezcla', n: 2, grupo: 'tecnico' },
+  ],
+};
+const puestos_ = t => PERSONAL[TURNOS[t].personal];
+const nNombres_ = t => puestos_(t).reduce((s, p) => s + p.n, 0);
+const N_NOMBRES_MAX = Math.max(...Object.keys(PERSONAL).map(k => PERSONAL[k].reduce((s, p) => s + p.n, 0)));
+// Hoja «Personal por turno»: una fila por persona
+const COLS_PERSONAL = ['Fecha', 'Turno', 'Puesto', 'N°', 'Nombre'];
 
 // Grupos de selección rápida
 const GRUPOS = [
@@ -154,7 +171,7 @@ function casilla_(sh, m) {
 const FILA_ACCIONES = FILA_PLANO_FIN + 5, FILA_TABLA_TITULO = FILA_ACCIONES + 1,
   FILA_TABLA_CAB = FILA_ACCIONES + 2, FILA_TABLA_INI = FILA_ACCIONES + 3;
 const ORDEN_TABLA = maquinas_().map(m => m.id).sort((a, b) => a - b);
-const N_FILAS_TABLA = Math.max(ORDEN_TABLA.length, N_NOMBRES);
+const N_FILAS_TABLA = Math.max(ORDEN_TABLA.length, N_NOMBRES_MAX);
 const FILA_TABLA_FIN = FILA_TABLA_INI + N_FILAS_TABLA - 1;
 const FILA_AYUDA = FILA_TABLA_FIN + 2;
 const FILAS_HOJA = FILA_AYUDA + 1;
@@ -166,14 +183,13 @@ const CAMPOS_TABLA = [
   { k: 'maquina',    titulo: 'MÁQ.',                 ancho: 2 },
   { k: 'ton',        titulo: 'TON',                  ancho: 2, entrada: true, formato: '0', numero: true },
   { k: 'op',         titulo: 'OP',                   ancho: 3, entrada: true, formato: '@' },
-  { k: 'producto',   titulo: 'PRODUCTO',             ancho: 6, entrada: true, formato: '@' },
+  { k: 'producto',   titulo: 'PRODUCTO',             ancho: 7, entrada: true, formato: '@' },
   { k: 'referencia', titulo: 'REFERENCIA',           ancho: 4, entrada: true, formato: '@' },
   { k: 'color',      titulo: 'COLOR',                ancho: 3, entrada: true, formato: '@' },
   { k: 'material',   titulo: 'MATERIAL',             ancho: 3, entrada: true, formato: '@' },
-  { k: 'operario1',  titulo: 'OPERARIO 1',           ancho: 3, entrada: true, formato: '@' },
-  { k: 'operario2',  titulo: 'OPERARIO 2',           ancho: 3, entrada: true, formato: '@' },
-  { k: 'operario3',  titulo: 'OPERARIO 3',           ancho: 3, entrada: true, formato: '@' },
-  { k: 'tecnico',    titulo: 'TÉCNICO DE INYECCIÓN', ancho: 4, entrada: true, formato: '@' },
+  { k: 'operario1',  titulo: 'OPERARIO 1',           ancho: 4, entrada: true, formato: '@' },
+  { k: 'operario2',  titulo: 'OPERARIO 2',           ancho: 4, entrada: true, formato: '@' },
+  { k: 'operario3',  titulo: 'OPERARIO 3',           ancho: 4, entrada: true, formato: '@' },
 ];
 (function () {
   let c = COL0;
@@ -188,6 +204,14 @@ const ANCHO_TABLA = CAMPOS_TABLA.reduce((s, x) => s + x.ancho, 0);
 
 // Cuadro de personal: puesto (4 unidades) y nombre (4 unidades), a la derecha de la tabla
 const COL_PUESTO = U(ANCHO_TABLA + 2), COL_NOMBRE = COL_PUESTO + 4, ANCHO_PERSONAL = 8;
+
+// Resumen frente a la propuesta (fila 4): etiqueta de 3 unidades y valor de 2
+const RESUMEN = [
+  { k: 'maquinas',   titulo: 'MÁQUINAS',   col: U(1) },
+  { k: 'operarios',  titulo: 'OPERARIOS',  col: U(7) },
+  { k: 'produccion', titulo: 'PRODUCCIÓN', col: U(13) },
+  { k: 'tecnicos',   titulo: 'TÉCNICOS',   col: U(19) },
+];
 
 // ======================= MENÚ Y DISPARADORES =======================
 function onOpen() {
@@ -287,13 +311,13 @@ function configurarArchivo() {
   // Se construye el Turno 4 y se copia para los demás (más rápido)
   const plantilla = ss.insertSheet(TURNOS[4].hoja);
   construirHojaTurno_(plantilla);
-  ajustarTurno_(plantilla, 4);
   SpreadsheetApp.flush();
-  [1, 2, 3].forEach(t => ajustarTurno_(plantilla.copyTo(ss).setName(TURNOS[t].hoja), t));
+  [1, 2, 3].forEach(t => plantilla.copyTo(ss).setName(TURNOS[t].hoja));
 
   [1, 2, 3, 4].forEach((t, i) => {
     const s = ss.getSheetByName(TURNOS[t].hoja);
-    proteger_(s);
+    ajustarTurno_(s, t);
+    proteger_(s, t);
     ss.setActiveSheet(s);
     ss.moveActiveSheet(i + 1);
   });
@@ -395,15 +419,20 @@ function prepararPlan_(ss) {
 function prepararPersonal_(ss) {
   let sh = ss.getSheetByName(HOJA_PERSONAL);
   if (!sh) sh = ss.insertSheet(HOJA_PERSONAL);
-  migrarColumnas_(sh, COLS_PERSONAL);
+  // Formato anterior (una columna por puesto): los puestos cambiaron, se empieza de nuevo
+  const cab = sh.getLastColumn() ? sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String) : [];
+  if (cab.join('|') !== COLS_PERSONAL.join('|')) {
+    sh.clear();
+    sh.getRange(1, 1, 1, COLS_PERSONAL.length).setValues([COLS_PERSONAL]);
+  }
   cabecera_(sh, COLS_PERSONAL.length);
   const n = sh.getMaxRows() - 1;
   sh.getRange(2, 1, n, 1).setNumberFormat('dd/mm/yyyy');
   sh.getRange(2, 2, n, 1).setHorizontalAlignment('center');
-  sh.getRange(2, 3, n, N_NOMBRES).setNumberFormat('@');
-  sh.setColumnWidth(1, 90);
-  sh.setColumnWidth(2, 55);
-  sh.setColumnWidths(3, N_NOMBRES, 160);
+  sh.getRange(2, 3, n, 1).setNumberFormat('@');
+  sh.getRange(2, 4, n, 1).setHorizontalAlignment('center');
+  sh.getRange(2, 5, n, 1).setNumberFormat('@');
+  [90, 55, 260, 45, 220].forEach((w, i) => sh.setColumnWidth(i + 1, w));
   sh.setTabColor('#5b6676');
 }
 
@@ -489,6 +518,12 @@ function construirHojaTurno_(sh) {
     caja_(sh, f, c + 1, 1, 3).setValue(`${g.nombre} (${g.desde}–${g.hasta})`).setFontSize(9).setFontWeight('bold');
   });
 
+  // Resumen frente a la propuesta (los valores los pone ajustarTurno_)
+  RESUMEN.forEach(x => {
+    etiqueta_(caja_(sh, 4, x.col, 1, 3), x.titulo);
+    caja_(sh, 4, x.col + 3, 1, 2).setFontWeight('bold').setFontSize(11).setHorizontalAlignment('left');
+  });
+
   // ---- Plano ----
   seccion_(caja_(sh, 5, U(1), 1, 20), 'LÍNEA 2 · MÁQUINAS 201–218');
   seccion_(caja_(sh, franja_(2) + 1, U(1), 1, 20), 'LÍNEA 1 · MÁQUINAS 101–143');
@@ -570,20 +605,11 @@ function construirHojaTurno_(sh) {
   sh.getRange(FILA_TABLA_INI, CAMPO.ton.col, n, CAMPO.ton.ancho).setDataValidation(SpreadsheetApp.newDataValidation()
     .requireNumberGreaterThanOrEqualTo(0).setAllowInvalid(false).setHelpText('Solo números (≥ 0).').build());
 
-  // Cuadro de personal: puesto | nombre (Mantenimiento ocupa 6 filas)
+  // Cuadro de personal: encabezado (los puestos de cada turno los pone ajustarTurno_)
   caja_(sh, FILA_TABLA_CAB, COL_PUESTO, 1, 4).setValue('PUESTO');
   caja_(sh, FILA_TABLA_CAB, COL_NOMBRE, 1, 4).setValue('NOMBRE');
   sh.getRange(FILA_TABLA_CAB, COL_PUESTO, 1, ANCHO_PERSONAL).setBackground('#dfe3ea').setFontSize(9)
-    .setFontWeight('bold').setHorizontalAlignment('center');
-  let fila = FILA_TABLA_INI;
-  PUESTOS.forEach(p => {
-    caja_(sh, fila, COL_PUESTO, p.n, 4).setValue(p.titulo).setFontWeight('bold').setFontSize(9).setWrap(true)
-      .setBackground(COLOR.fijo).setVerticalAlignment('middle');
-    fila += p.n;
-  });
-  sh.getRange(FILA_TABLA_INI, COL_NOMBRE, N_NOMBRES, 4).mergeAcross().setNumberFormat('@')
-    .setBackground(COLOR.entrada);
-  sh.getRange(FILA_TABLA_CAB, COL_PUESTO, N_NOMBRES + 1, ANCHO_PERSONAL)
+    .setFontWeight('bold').setHorizontalAlignment('center')
     .setBorder(true, true, true, true, true, true, COLOR.lineaTabla, SB.SOLID);
 
   // Estado en rojo si hay cambios sin enviar
@@ -600,9 +626,8 @@ function construirHojaTurno_(sh) {
     .setValue('Cómo usar: 1) Elige la fecha arriba. 2) Marca las máquinas que trabajarán en el turno (una por una, ' +
       'todas o por línea); se agregan a la tabla en orden de número. 3) Completa los campos amarillos de la tabla ' +
       'y el personal del turno. 4) Marca «Enviar a Planificación» para guardar todo. Antes de cambiar de fecha envía o ' +
-      'descarta los cambios. El tonelaje se recuerda por máquina. Turno 3: la fecha es la del día en que inicia el turno (10:30 PM).');
-
-  sh.hideRows(FILA_TABLA_INI + N_NOMBRES, n - N_NOMBRES);
+      'descarta los cambios. El tonelaje se recuerda por máquina. En los turnos 2 y 3 un técnico de inyección puede ' +
+      'cubrir la supervisión. Turno 3: la fecha es la del día en que inicia el turno (10:30 PM).');
 }
 
 function ajustarTurno_(sh, t) {
@@ -612,10 +637,49 @@ function ajustarTurno_(sh, t) {
   sh.getRange(2, U(18)).setValue(T.descanso);
   sh.getRange(CELDA.horas[0], CELDA.horas[1]).setValue(T.horas);
   sh.setTabColor(T.color);
+
+  // Cuadro de personal con los puestos del turno
+  const SB = SpreadsheetApp.BorderStyle;
+  const nombres = nNombres_(t);
+  let fila = FILA_TABLA_INI;
+  const rangos = { produccion: [], tecnico: [] };
+  puestos_(t).forEach(p => {
+    caja_(sh, fila, COL_PUESTO, p.n, 4).setValue(p.titulo).setFontWeight('bold').setFontSize(9).setWrap(true)
+      .setBackground(COLOR.fijo).setVerticalAlignment('middle');
+    rangos[p.grupo].push(sh.getRange(fila, COL_NOMBRE, p.n, 1).getA1Notation());
+    fila += p.n;
+  });
+  sh.getRange(FILA_TABLA_INI, COL_NOMBRE, nombres, 4).mergeAcross().setNumberFormat('@').setBackground(COLOR.entrada);
+  sh.getRange(FILA_TABLA_CAB, COL_PUESTO, nombres + 1, ANCHO_PERSONAL)
+    .setBorder(true, true, true, true, true, true, COLOR.lineaTabla, SB.SOLID);
+
+  // Resumen: lo asignado frente a la meta de la propuesta (rojo si falta, verde si se cumple)
+  const plano = sh.getRange(FILA_PLANO_INI, U(1), FILA_PLANO_FIN - FILA_PLANO_INI + 1, N_UNIDADES).getA1Notation();
+  const ops = sh.getRange(FILA_TABLA_INI, CAMPO.operario1.col, N_FILAS_TABLA,
+    CAMPO.operario3.col + CAMPO.operario3.ancho - CAMPO.operario1.col).getA1Notation();
+  const contar = lista => lista.length ? lista.map(a => `COUNTA(${a})`).join('+') : '0';
+  const cuenta = {
+    maquinas: `COUNTIF(${plano},TRUE)`,
+    operarios: `COUNTA(${ops})`,
+    produccion: `COUNTA(${ops})+${contar(rangos.produccion)}`,
+    tecnicos: contar(rangos.tecnico),
+  };
+  const regla = SpreadsheetApp.newConditionalFormatRule;
+  const reglas = sh.getConditionalFormatRules();
+  RESUMEN.forEach(x => {
+    const celda = sh.getRange(4, x.col + 3);
+    const meta = T.metas[x.k];
+    celda.setFormula(fx_(meta ? `=(${cuenta[x.k]})&" / ${meta}"` : `=(${cuenta[x.k]})&""`));
+    if (!meta) return;
+    const rg = sh.getRange(4, x.col + 3, 1, 2);
+    reglas.push(regla().whenFormulaSatisfied(fx_(`=(${cuenta[x.k]})<${meta}`)).setFontColor('#b3261e').setRanges([rg]).build());
+    reglas.push(regla().whenFormulaSatisfied(fx_(`=(${cuenta[x.k]})>=${meta}`)).setFontColor('#1b7a3a').setRanges([rg]).build());
+  });
+  sh.setConditionalFormatRules(reglas);
 }
 
 /** Protección de advertencia: avisa si se intenta escribir sobre el plano o las etiquetas. */
-function proteger_(sh) {
+function proteger_(sh, t) {
   sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => p.remove());
   const p = sh.protect().setDescription('Plano y tabla (solo advertencia)').setWarningOnly(true);
   p.setUnprotectedRanges([
@@ -624,7 +688,7 @@ function proteger_(sh) {
     sh.getRange(ACCION.enviar[0], ACCION.enviar[1]),
     sh.getRange(ACCION.descartar[0], ACCION.descartar[1]),
     sh.getRange(FILA_TABLA_INI, COL_ENTRADA_INI, N_FILAS_TABLA, COL_ENTRADA_FIN - COL_ENTRADA_INI + 1),
-    sh.getRange(FILA_TABLA_INI, COL_NOMBRE, N_NOMBRES, 4),
+    sh.getRange(FILA_TABLA_INI, COL_NOMBRE, nNombres_(t), 4),
   ].concat(CELDA.grupos.map(([f, c]) => sh.getRange(f, c)))
    .concat(maquinas_().map(m => sh.getRange(m.chk.fila, m.chk.col, 1, m.chk.ancho))));
 }
@@ -695,7 +759,7 @@ function leerTabla_(sh) {
  * Escribe la tabla con las máquinas activas una debajo de otra, en orden de número.
  * `valores(id)` da los campos de cada máquina. Muestra al menos las filas del cuadro de personal.
  */
-function escribirTabla_(sh, activa, valores) {
+function escribirTabla_(sh, t, activa, valores) {
   const ids = ORDEN_TABLA.filter(id => activa[id]);
   const filas = [];
   for (let i = 0; i < N_FILAS_TABLA; i++) {
@@ -708,7 +772,7 @@ function escribirTabla_(sh, activa, valores) {
     filas.push(fila);
   }
   sh.getRange(FILA_TABLA_INI, COL0, N_FILAS_TABLA, ANCHO_TABLA).setValues(filas);
-  const visibles = Math.max(ids.length, N_NOMBRES);
+  const visibles = Math.max(ids.length, nNombres_(t));
   sh.showRows(FILA_TABLA_INI, visibles);
   if (visibles < N_FILAS_TABLA) sh.hideRows(FILA_TABLA_INI + visibles, N_FILAS_TABLA - visibles);
 }
@@ -739,7 +803,7 @@ function aplicarSeleccion_(sh, t) {
   const actual = leerTabla_(sh);
   const rec = registros_(leerPlan_(), claveFecha_(sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1]).getValue()), t);
   const ton = tonelajes_();
-  escribirTabla_(sh, activa, id => actual[id] || valoresRegistro_(rec[String(id)], ton, id));
+  escribirTabla_(sh, t, activa, id => actual[id] || valoresRegistro_(rec[String(id)], ton, id));
   actualizarGrupos_(sh, activa);
 }
 
@@ -766,10 +830,9 @@ function cargar_(sh, t, datos) {
   if (si.length) sh.getRangeList(si).check();
   if (no.length) sh.getRangeList(no).uncheck();
 
-  escribirTabla_(sh, activa, id => valoresRegistro_(rec[String(id)], ton, id));
-  const personal = leerPersonal_(claveFecha_(fechaV), t);
-  sh.getRange(FILA_TABLA_INI, COL_NOMBRE, N_NOMBRES, 1)
-    .setValues((personal ? personal.nombres : new Array(N_NOMBRES).fill('')).map(x => [x]));
+  escribirTabla_(sh, t, activa, id => valoresRegistro_(rec[String(id)], ton, id));
+  sh.getRange(FILA_TABLA_INI, COL_NOMBRE, nNombres_(t), 1)
+    .setValues(leerPersonal_(claveFecha_(fechaV), t).map(x => [x]));
   actualizarGrupos_(sh, activa);
   sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).setValue(false);
   sh.getRange(CELDA.fechaCargada[0], CELDA.fechaCargada[1]).setValue(fechaV);
@@ -847,7 +910,7 @@ function enviar_(sh, t) {
 
   // Personal del turno
   guardarPersonal_(fechaV, clave, t,
-    sh.getRange(FILA_TABLA_INI, COL_NOMBRE, N_NOMBRES, 1).getValues().map(r => r[0]));
+    sh.getRange(FILA_TABLA_INI, COL_NOMBRE, nNombres_(t), 1).getValues().map(r => r[0]));
 
   sh.getRange(CELDA.pendiente[0], CELDA.pendiente[1]).setValue(false);
   sh.getRange(CELDA.fechaCargada[0], CELDA.fechaCargada[1]).setValue(fechaV);
@@ -858,31 +921,45 @@ function enviar_(sh, t) {
   ss.toast(`${nuevas.length} nueva(s), ${actualizadas} actualizada(s), ${borrar.length} quitada(s).`, 'Enviado a Planificación', 5);
 }
 
-/** Personal guardado para una fecha y turno: { fila, nombres } o null. */
-function leerPersonal_(clave, t) {
-  const sh = SpreadsheetApp.getActive().getSheetByName(HOJA_PERSONAL);
-  if (!sh || !clave || sh.getLastRow() < 2) return null;
-  const v = sh.getRange(2, 1, sh.getLastRow() - 1, COLS_PERSONAL.length).getValues();
-  for (let i = 0; i < v.length; i++) {
-    if (claveFecha_(v[i][0]) === clave && Number(v[i][1]) === t) return { fila: i + 2, nombres: v[i].slice(2) };
-  }
-  return null;
+/** Casillas de nombre del cuadro de personal de un turno, en orden: [{ puesto, n }]. */
+function casillasPersonal_(t) {
+  const out = [];
+  puestos_(t).forEach(p => { for (let i = 1; i <= p.n; i++) out.push({ puesto: p.titulo, n: i }); });
+  return out;
 }
 
-/** Crea o actualiza la fila de personal de una fecha y turno (la borra si no hay nombres). */
+/** Filas de «Personal por turno» de una fecha y turno: [{ fila, puesto, n, nombre }]. */
+function filasPersonal_(clave, t) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(HOJA_PERSONAL);
+  if (!sh || !clave || sh.getLastRow() < 2) return [];
+  const out = [];
+  sh.getRange(2, 1, sh.getLastRow() - 1, COLS_PERSONAL.length).getValues().forEach((r, i) => {
+    if (claveFecha_(r[0]) === clave && Number(r[1]) === t) out.push({ fila: i + 2, puesto: r[2], n: Number(r[3]), nombre: r[4] });
+  });
+  return out;
+}
+
+/** Nombres guardados para el cuadro de personal de una fecha y turno (vacíos si no hay). */
+function leerPersonal_(clave, t) {
+  const guardado = filasPersonal_(clave, t);
+  return casillasPersonal_(t).map(c => {
+    const g = guardado.find(x => x.puesto === c.puesto && x.n === c.n);
+    return g ? g.nombre : '';
+  });
+}
+
+/** Reemplaza el personal guardado de una fecha y turno por los nombres del cuadro (una fila por persona). */
 function guardarPersonal_(fechaV, clave, t, nombres) {
   const sh = SpreadsheetApp.getActive().getSheetByName(HOJA_PERSONAL);
   if (!sh) return;
-  const prev = leerPersonal_(clave, t);
-  const hay = nombres.some(x => !vacio_(x));
-  if (!hay) {
-    if (prev) sh.deleteRow(prev.fila);
-    return;
-  }
-  const fila = [fechaV, t].concat(nombres);
-  const destino = prev ? prev.fila : Math.max(sh.getLastRow(), 1) + 1;
-  if (destino > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 200);
-  sh.getRange(destino, 1, 1, fila.length).setValues([fila]);
+  filasPersonal_(clave, t).map(x => x.fila).sort((a, b) => b - a).forEach(f => sh.deleteRow(f));
+  const filas = casillasPersonal_(t).map((c, i) => [fechaV, t, c.puesto, c.n, nombres[i]])
+    .filter(f => !vacio_(f[4]));
+  if (!filas.length) return;
+  const ini = Math.max(sh.getLastRow(), 1) + 1;
+  const fin = ini + filas.length - 1;
+  if (fin > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), fin - sh.getMaxRows() + 200);
+  sh.getRange(ini, 1, filas.length, COLS_PERSONAL.length).setValues(filas);
 }
 
 /** Recarga las hojas de turno desde Planificación (salvo las que tienen cambios sin enviar). */
