@@ -103,19 +103,24 @@ const ULTIMA_COL = U(N_UNIDADES) + 1; // columna de margen derecho
 const ANCHO_TOTAL = N_UNIDADES;
 // Las máquinas van en "franjas" de 3 filas: número, casilla y un separador fino, así el espacio
 // entre filas de máquinas es siempre el mismo. Hay 6 franjas (filas 6–22).
-const FILA_PLANO_INI = 6;
+// Encabezado: título (1) · tarjetas de datos (3 etiqueta, 4 valor) · resumen (6) · títulos del plano (8)
+const FILA_ETIQ = 3, FILA_VALOR = 4, FILA_RESUMEN = 6, FILA_SECCION = 8;
+const FILA_PLANO_INI = 9;
 const franja_ = k => FILA_PLANO_INI + 3 * k;
 const FILA_PLANO_FIN = franja_(5) + 1;
 const ALTO_FILA_PLANO = 36, ALTO_SEPARADOR = 8;
 
 const CELDA = {
-  fechaSel: [2, U(3)], activas: [2, U(27)], horas: [3, U(21)], todas: [3, U(25)],
-  grupos: [[4, U(25)], [4, U(29)], [4, U(33)]],
+  fechaSel: [FILA_VALOR, U(1)], activas: [FILA_VALOR, U(27)], horas: [FILA_VALOR, U(22)],
+  todas: [FILA_ETIQ, U(33)], grupos: [[FILA_VALOR, U(33)], [FILA_VALOR, U(37)], [FILA_VALOR, U(41)]],
   // Celdas auxiliares en la columna A (texto invisible)
   pendiente: [FILA_PLANO_FIN + 3, 1],   // TRUE si hay cambios sin enviar
   fechaCargada: [FILA_PLANO_FIN + 4, 1], // fecha cuyos datos muestra la hoja
 };
-const ANCHO_FECHA = 4;
+const ANCHO_FECHA = 5;
+// Tarjetas del encabezado: [título, columna, ancho]
+const TARJETAS = { fecha: ['FECHA', U(1), 5], horario: ['HORARIO', U(7), 6], descanso: ['DESCANSO', U(14), 7],
+  horas: ['HORAS EFECTIVAS', U(22), 4], activas: ['MÁQ. ACTIVAS', U(27), 4] };
 
 // Máquinas en uso, en el orden en que aparecen en el plano
 const LINEA2 = [202, 203, 204, 206, 207, 209, 210, 211, 212, 213, 214];   // fila bajo la 201
@@ -207,10 +212,10 @@ const COL_PUESTO = U(ANCHO_TABLA + 2), COL_NOMBRE = COL_PUESTO + 4, ANCHO_PERSON
 
 // Resumen frente a la propuesta (fila 4): etiqueta de 3 unidades y valor de 2
 const RESUMEN = [
-  { k: 'maquinas',   titulo: 'MÁQUINAS',   col: U(1) },
-  { k: 'operarios',  titulo: 'OPERARIOS',  col: U(7) },
-  { k: 'produccion', titulo: 'PRODUCCIÓN', col: U(13) },
-  { k: 'tecnicos',   titulo: 'TÉCNICOS',   col: U(19) },
+  { k: 'maquinas',   titulo: 'MÁQUINAS',   col: U(6) },
+  { k: 'operarios',  titulo: 'OPERARIOS',  col: U(12) },
+  { k: 'produccion', titulo: 'PRODUCCIÓN', col: U(18) },
+  { k: 'tecnicos',   titulo: 'TÉCNICOS',   col: U(24) },
 ];
 
 // ======================= MENÚ Y DISPARADORES =======================
@@ -468,7 +473,8 @@ function construirHojaTurno_(sh) {
   sh.setColumnWidth(1, 16);
   sh.setColumnWidths(COL0, ULTIMA_COL - COL0, ANCHO_UNIDAD);
   sh.setColumnWidth(ULTIMA_COL, 16);
-  const alto = { 1: 34, 2: 28, 3: 24, 4: 24, 5: 24, [FILA_PLANO_FIN + 1]: 8,
+  const alto = { 1: 40, 2: 10, [FILA_ETIQ]: 22, [FILA_VALOR]: 30, 5: 10, [FILA_RESUMEN]: 30, 7: 10, [FILA_SECCION]: 24,
+    [FILA_PLANO_FIN + 1]: 8,
     [FILA_PLANO_FIN + 2]: 6, [CELDA.pendiente[0]]: 6, [CELDA.fechaCargada[0]]: 6,
     [FILA_TABLA_TITULO]: 28, [FILA_ACCIONES]: 32, [FILA_TABLA_CAB]: 34, [FILA_TABLA_FIN + 1]: 10, [FILA_AYUDA]: 36 };
   for (let f = FILA_PLANO_INI; f <= FILA_PLANO_FIN; f++) {
@@ -480,37 +486,33 @@ function construirHojaTurno_(sh) {
     .setFontColor(COLOR.texto).setVerticalAlignment('middle').setBackground('#ffffff');
 
   // ---- Encabezado ----
-  caja_(sh, 1, U(1), 1, N_UNIDADES).setFontSize(16).setFontWeight('bold');
+  // Barra de título
+  caja_(sh, 1, U(1), 1, N_UNIDADES).setFontSize(16).setFontWeight('bold').setFontColor('#ffffff')
+    .setBackground(COLOR.cabecera);
 
-  etiqueta_(caja_(sh, 2, U(1), 1, 2), 'FECHA');
-  const sel = caja_(sh, CELDA.fechaSel[0], CELDA.fechaSel[1], 1, ANCHO_FECHA);
-  sel.setNumberFormat('dd/mm/yyyy').setHorizontalAlignment('center').setFontWeight('bold').setFontSize(12)
-    .setBackground(COLOR.entrada).setBorder(true, true, true, true, null, null, '#c9a227', SB.SOLID_MEDIUM)
+  // Tarjetas de datos: etiqueta arriba (gris) y valor abajo, con recuadro
+  Object.keys(TARJETAS).forEach(k => {
+    const [titulo, col, ancho] = TARJETAS[k];
+    caja_(sh, FILA_ETIQ, col, 1, ancho).setValue('  ' + titulo).setFontSize(8).setFontWeight('bold')
+      .setFontColor(COLOR.etiqueta).setBackground(COLOR.fijo);
+    caja_(sh, FILA_VALOR, col, 1, ancho).setFontSize(12).setFontWeight('bold').setHorizontalAlignment('center');
+    sh.getRange(FILA_ETIQ, col, 2, ancho).setBorder(true, true, true, true, null, null, '#c5ccd6', SB.SOLID);
+  });
+  const sel = sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1], 1, ANCHO_FECHA);
+  sel.setNumberFormat('dd/mm/yyyy').setBackground(COLOR.entrada)
+    .setBorder(true, true, true, true, null, null, '#c9a227', SB.SOLID_MEDIUM)
     .setDataValidation(SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(false)
       .setHelpText('Fecha a ver o planificar (doble clic abre el calendario).').build());
   const hoy = new Date();
   sel.setValue(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()));
-  etiqueta_(caja_(sh, 2, U(8), 1, 2), 'HORARIO');
-  caja_(sh, 2, U(10), 1, 5).setFontWeight('bold').setFontSize(11);
-  etiqueta_(caja_(sh, 2, U(16), 1, 2), 'DESCANSO');
-  caja_(sh, 2, U(18), 1, 6).setFontSize(11);
-  etiqueta_(caja_(sh, 2, U(24), 1, 3), 'MÁQ. ACTIVAS');
-  const activas = caja_(sh, CELDA.activas[0], CELDA.activas[1], 1, 3).setFontWeight('bold').setFontSize(12);
+  sh.getRange(CELDA.horas[0], CELDA.horas[1]).setNumberFormat('0.0 "h"');
+  const activas = sh.getRange(CELDA.activas[0], CELDA.activas[1], 1, TARJETAS.activas[2]);
 
-  // Leyenda
-  [[U(1), COLOR.activa, 'Activa (trabaja)'], [U(6), COLOR.inactiva, 'Sin planificar']].forEach(([c, col, txt]) => {
-    sh.getRange(3, c).setBackground(col).setBorder(true, true, true, true, null, null, COLOR.borde, SB.SOLID);
-    caja_(sh, 3, c + 1, 1, 3).setValue(txt).setFontSize(9).setFontColor(COLOR.etiqueta);
-  });
-
-  // Horas efectivas del turno
-  etiqueta_(caja_(sh, 3, U(16), 1, 5), 'HORAS EFECTIVAS');
-  caja_(sh, CELDA.horas[0], CELDA.horas[1], 1, 2).setNumberFormat('0.0 "h"').setFontWeight('bold')
-    .setHorizontalAlignment('left');
-
-  // Selección rápida: todas y por línea
+  // Selección rápida: todas (arriba) y por línea (abajo), en un recuadro
+  const marco = sh.getRange(FILA_ETIQ, U(32), 2, N_UNIDADES - 31);
+  marco.setBackground(COLOR.fijo).setBorder(true, true, true, true, null, null, '#c5ccd6', SB.SOLID);
   sh.getRange(CELDA.todas[0], CELDA.todas[1]).insertCheckboxes().setHorizontalAlignment('center');
-  caja_(sh, CELDA.todas[0], CELDA.todas[1] + 1, 1, 11).setValue('Marcar / desmarcar todas')
+  caja_(sh, CELDA.todas[0], CELDA.todas[1] + 1, 1, 12).setValue('Marcar / desmarcar todas')
     .setFontSize(10).setFontWeight('bold');
   GRUPOS.forEach((g, i) => {
     const [f, c] = CELDA.grupos[i];
@@ -518,17 +520,25 @@ function construirHojaTurno_(sh) {
     caja_(sh, f, c + 1, 1, 3).setValue(`${g.nombre} (${g.desde}–${g.hasta})`).setFontSize(9).setFontWeight('bold');
   });
 
-  // Resumen frente a la propuesta (los valores los pone ajustarTurno_)
+  // Franja del resumen frente a la propuesta (los valores los pone ajustarTurno_) y leyenda
+  sh.getRange(FILA_RESUMEN, U(1), 1, N_UNIDADES).setBackground(COLOR.fijo)
+    .setBorder(true, true, true, true, null, null, '#c5ccd6', SB.SOLID);
+  caja_(sh, FILA_RESUMEN, U(1), 1, 4).setValue('  PROPUESTA').setFontSize(9).setFontWeight('bold')
+    .setFontColor('#ffffff').setBackground(COLOR.cabecera);
   RESUMEN.forEach(x => {
-    etiqueta_(caja_(sh, 4, x.col, 1, 3), x.titulo);
-    caja_(sh, 4, x.col + 3, 1, 2).setFontWeight('bold').setFontSize(11).setHorizontalAlignment('left');
+    etiqueta_(caja_(sh, FILA_RESUMEN, x.col, 1, 3), x.titulo).setHorizontalAlignment('right');
+    caja_(sh, FILA_RESUMEN, x.col + 3, 1, 2).setFontWeight('bold').setFontSize(11).setHorizontalAlignment('center');
+  });
+  [[U(36), COLOR.activa, 'Activa (trabaja)'], [U(41), COLOR.inactiva, 'Sin planificar']].forEach(([c, col, txt]) => {
+    sh.getRange(FILA_RESUMEN, c).setBackground(col).setBorder(true, true, true, true, null, null, COLOR.borde, SB.SOLID);
+    caja_(sh, FILA_RESUMEN, c + 1, 1, 4).setValue(txt).setFontSize(9).setFontColor(COLOR.texto);
   });
 
   // ---- Plano ----
-  seccion_(caja_(sh, 5, U(1), 1, 20), 'LÍNEA 2 · MÁQUINAS 201–218');
+  seccion_(caja_(sh, FILA_SECCION, U(1), 1, 20), 'LÍNEA 2 · MÁQUINAS 201–218');
   seccion_(caja_(sh, franja_(2) + 1, U(1), 1, 20), 'LÍNEA 1 · MÁQUINAS 101–143');
-  seccion_(caja_(sh, 5, S(1), 1, 6), ' LÍNEA 3 · SOPLADO');
-  sh.getRange(5, S(1), franja_(2) + 2 - 5, 6).setBorder(true, true, true, true, null, null, '#7a8594', SB.DASHED);
+  seccion_(caja_(sh, FILA_SECCION, S(1), 1, 6), ' LÍNEA 3 · SOPLADO');
+  sh.getRange(FILA_SECCION, S(1), franja_(2) + 2 - FILA_SECCION, 6).setBorder(true, true, true, true, null, null, '#7a8594', SB.DASHED);
 
   const ms = maquinas_();
   const bloques = ms.map(m => sh.getRange(m.fila, m.col, m.alto, m.ancho));
@@ -559,7 +569,7 @@ function construirHojaTurno_(sh) {
   const plano = sh.getRange(FILA_PLANO_INI, U(1), FILA_PLANO_FIN - FILA_PLANO_INI + 1, N_UNIDADES).getA1Notation();
   sh.getRange(CELDA.activas[0], CELDA.activas[1])
     .setFormula(fx_(`=COUNTIF(${plano},TRUE)&" / ${ORDEN_TABLA.length}"`));
-  activas.setHorizontalAlignment('left');
+  activas.setHorizontalAlignment('center');
 
   [CELDA.pendiente, CELDA.fechaCargada].forEach(([f, c]) => sh.getRange(f, c)
     .setFontColor('#ffffff').setFontSize(6).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP));
@@ -633,8 +643,8 @@ function construirHojaTurno_(sh) {
 function ajustarTurno_(sh, t) {
   const T = TURNOS[t];
   sh.getRange(1, U(1)).setValue(`MANAPLAS · PLANIFICACIÓN DE PRODUCCIÓN · ${T.hoja.toUpperCase()}${T.standard ? ' (STANDARD)' : ''}`);
-  sh.getRange(2, U(10)).setValue(T.horario);
-  sh.getRange(2, U(18)).setValue(T.descanso);
+  sh.getRange(FILA_VALOR, TARJETAS.horario[1]).setValue(T.horario);
+  sh.getRange(FILA_VALOR, TARJETAS.descanso[1]).setValue(T.descanso);
   sh.getRange(CELDA.horas[0], CELDA.horas[1]).setValue(T.horas);
   sh.setTabColor(T.color);
 
@@ -667,11 +677,11 @@ function ajustarTurno_(sh, t) {
   const regla = SpreadsheetApp.newConditionalFormatRule;
   const reglas = sh.getConditionalFormatRules();
   RESUMEN.forEach(x => {
-    const celda = sh.getRange(4, x.col + 3);
+    const celda = sh.getRange(FILA_RESUMEN, x.col + 3);
     const meta = T.metas[x.k];
     celda.setFormula(fx_(meta ? `=(${cuenta[x.k]})&" / ${meta}"` : `=(${cuenta[x.k]})&""`));
     if (!meta) return;
-    const rg = sh.getRange(4, x.col + 3, 1, 2);
+    const rg = sh.getRange(FILA_RESUMEN, x.col + 3, 1, 2);
     reglas.push(regla().whenFormulaSatisfied(fx_(`=(${cuenta[x.k]})<${meta}`)).setFontColor('#b3261e').setRanges([rg]).build());
     reglas.push(regla().whenFormulaSatisfied(fx_(`=(${cuenta[x.k]})>=${meta}`)).setFontColor('#1b7a3a').setRanges([rg]).build());
   });
