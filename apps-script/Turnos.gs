@@ -462,19 +462,9 @@ function construirHojaTurno_(sh) {
 
   const nums = ms.map(m => caja_(sh, m.num.fila, m.num.col, m.num.alto, m.num.ancho));
   sh.getRangeList(nums.map(r => r.getA1Notation())).setNumberFormat('@')
-    .setFontFamily('Roboto Mono').setFontWeight('bold').setFontSize(14);
-  const anchas = [], angostas = [], bajas = [];
-  ms.forEach((m, i) => {
-    const ancha = m.num.ancho >= 4;
-    nums[i].setValue(ancha ? '  ' + m.id : String(m.id));
-    const a1 = nums[i].getA1Notation();
-    if (ancha) anchas.push(a1);
-    else if (m.num.alto > 1) angostas.push(a1);
-    else bajas.push(a1);
-  });
-  sh.getRangeList(anchas).setHorizontalAlignment('left').setVerticalAlignment('middle');
-  sh.getRangeList(angostas).setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRangeList(bajas).setHorizontalAlignment('center').setVerticalAlignment('middle');
+    .setFontFamily('Roboto Mono').setFontWeight('bold').setFontSize(14)
+    .setHorizontalAlignment('center').setVerticalAlignment('middle');
+  ms.forEach((m, i) => nums[i].setValue(String(m.id)));
 
   const chks = ms.map(m => caja_(sh, m.chk.fila, m.chk.col, 1, m.chk.ancho).getA1Notation());
   sh.getRangeList(chks).insertCheckboxes().setHorizontalAlignment('center').setVerticalAlignment('middle')
