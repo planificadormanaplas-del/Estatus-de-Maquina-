@@ -322,7 +322,7 @@ function configurarArchivo() {
   [1, 2, 3, 4].forEach((t, i) => {
     const s = ss.getSheetByName(TURNOS[t].hoja);
     ajustarTurno_(s, t);
-    proteger_(s, t);
+    s.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => p.remove());
     ss.setActiveSheet(s);
     ss.moveActiveSheet(i + 1);
   });
@@ -686,21 +686,6 @@ function ajustarTurno_(sh, t) {
     reglas.push(regla().whenFormulaSatisfied(fx_(`=(${cuenta[x.k]})>=${meta}`)).setFontColor('#1b7a3a').setRanges([rg]).build());
   });
   sh.setConditionalFormatRules(reglas);
-}
-
-/** Protección de advertencia: avisa si se intenta escribir sobre el plano o las etiquetas. */
-function proteger_(sh, t) {
-  sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => p.remove());
-  const p = sh.protect().setDescription('Plano y tabla (solo advertencia)').setWarningOnly(true);
-  p.setUnprotectedRanges([
-    sh.getRange(CELDA.fechaSel[0], CELDA.fechaSel[1], 1, ANCHO_FECHA),
-    sh.getRange(CELDA.todas[0], CELDA.todas[1]),
-    sh.getRange(ACCION.enviar[0], ACCION.enviar[1]),
-    sh.getRange(ACCION.descartar[0], ACCION.descartar[1]),
-    sh.getRange(FILA_TABLA_INI, COL_ENTRADA_INI, N_FILAS_TABLA, COL_ENTRADA_FIN - COL_ENTRADA_INI + 1),
-    sh.getRange(FILA_TABLA_INI, COL_NOMBRE, nNombres_(t), 4),
-  ].concat(CELDA.grupos.map(([f, c]) => sh.getRange(f, c)))
-   .concat(maquinas_().map(m => sh.getRange(m.chk.fila, m.chk.col, 1, m.chk.ancho))));
 }
 
 // ======================= LÓGICA =======================
