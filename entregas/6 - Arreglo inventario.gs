@@ -43,20 +43,31 @@ function leerInventarioDesdeCarpeta() {
   // Primero la plataforma y encima el semanal: si un codigo viene en los dos,
   // gana el semanal de los lunes. Lo que solo viene en uno tambien entra.
   var delArchivo = {}, deDonde = {};
+  var etiqueta = function (rep) {
+    return (rep.tipo === 'semanal' ? 'Semanal ' : 'Plataforma ') +
+      Utilities.formatDate(rep.fecha, Session.getScriptTimeZone(), 'dd/MM');
+  };
   [plataforma, semanal].forEach(function (rep) {
     if (!rep) return;
-    Object.keys(rep.datos).forEach(function (cod) { delArchivo[cod] = rep.datos[cod]; deDonde[cod] = rep.tipo; });
+    var et = etiqueta(rep);
+    Object.keys(rep.datos).forEach(function (cod) {
+      delArchivo[cod] = rep.datos[cod];
+      delArchivo[cod].fuente = et;
+      deDonde[cod] = rep.tipo;
+    });
   });
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var hoja1 = ss.getSheetByName('Inv');
   var todos = {};
   if (hoja1.getLastRow() > 0) {
-    hoja1.getRange(1, 1, hoja1.getLastRow(), 4).getValues().forEach(function (r) {
+    var nCols = Math.min(Math.max(hoja1.getLastColumn(), 4), 8);
+    hoja1.getRange(1, 1, hoja1.getLastRow(), nCols).getValues().forEach(function (r) {
       var cod = String(r[0] || '').trim();
       if (!/^0\d-\d{2}-\d{4}$/.test(cod)) return;
       var ex = (typeof r[3] === 'number') ? r[3] : parseNumeroInventario(r[3]);
-      todos[cod] = { nombre: String(r[1] || '').trim(), pista: String(r[2] || '').trim(), ex: ex === null ? 0 : ex };
+      todos[cod] = { nombre: String(r[1] || '').trim(), pista: String(r[2] || '').trim(), ex: ex === null ? 0 : ex,
+        si: '', com: '', con: '', fuente: r[7] ? String(r[7]) + ' (anterior)' : 'Anterior' };
     });
   }
 
@@ -66,9 +77,10 @@ function leerInventarioDesdeCarpeta() {
     if (todos[cod]) {
       if (todos[cod].ex !== n.ex) actualizados++;
       todos[cod].ex = n.ex;
+      todos[cod].si = n.si; todos[cod].com = n.com; todos[cod].con = n.con; todos[cod].fuente = n.fuente;
       if (!todos[cod].nombre) todos[cod].nombre = n.nombre;
     } else {
-      todos[cod] = { nombre: n.nombre, pista: '', ex: n.ex };
+      todos[cod] = { nombre: n.nombre, pista: '', ex: n.ex, si: n.si, com: n.com, con: n.con, fuente: n.fuente };
       agregados.push(cod + '  ' + n.nombre + '  (' + n.ex + ' kg)');
     }
   });
@@ -79,19 +91,20 @@ function leerInventarioDesdeCarpeta() {
   Object.keys(todos).forEach(function (cod) {
     var x = todos[cod];
     if (cod.indexOf('01-') === 0 && !esResinaPreColoreada(x.nombre)) {
-      materiaPrima.push([cod, x.nombre, x.pista || detectarCodigoInterno(x.nombre), x.ex]);
+      materiaPrima.push([cod, x.nombre, x.pista || detectarCodigoInterno(x.nombre), x.ex, x.si, x.com, x.con, x.fuente]);
     } else {
-      colorantes.push([cod, x.nombre, '', x.ex]);
+      colorantes.push([cod, x.nombre, '', x.ex, x.si, x.com, x.con, x.fuente]);
     }
   });
   materiaPrima.sort(function (a, b) { return b[3] - a[3]; });
   colorantes.sort(function (a, b) { return b[3] - a[3]; });
 
-  escribirHojaInv(hoja1, materiaPrima, colorantes);
+  var titulo = semanal ? 'Semana al ' + Utilities.formatDate(semanal.fecha, Session.getScriptTimeZone(), 'dd/MM/yyyy') : '';
+  escribirHojaInv(hoja1, materiaPrima, colorantes, titulo);
   actualizarInventarioCore();
   actualizarPortada();
 
-  var fecha = function (rep) { return Utilities.formatDate(rep.archivo.getLastUpdated(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'); };
+  var fecha = function (rep) { return Utilities.formatDate(rep.fecha, Session.getScriptTimeZone(), 'dd/MM/yyyy'); };
   ui.alert(
     'Inventario actualizado.\n\n' +
     '📅 Semanal (lunes): ' + (semanal ? '"' + semanal.archivo.getName() + '" (' + fecha(semanal) + ') — ' + Object.keys(semanal.datos).length + ' productos' : 'no encontré ninguno') + '\n' +
@@ -143,6 +156,7 @@ function leerReporteInventario(archivo) {
     if (!leidas) return { error: '"' + nombre + '" no tiene columna "Saldo Final" ni "Existencia".' };
     filas = leidas.filas;
     tipo = leidas.columna === 'SALDOFINAL' ? 'semanal' : 'plataforma';
+    var fechaReporte = leidas.fecha;
   }
 
   var datos = {};
@@ -151,53 +165,78 @@ function leerReporteInventario(archivo) {
     if (!/^0[12]-\d{2}-\d{4}$/.test(cod)) return;
     var ex = (typeof fila[2] === 'number') ? fila[2] : parseNumeroInventario(fila[2]);
     if (ex === null || ex === undefined || ex === '') return;
-    datos[cod] = { nombre: String(fila[1] || '').replace(/\s+/g, ' ').trim(), ex: ex };
+    var num = function (v) { return (typeof v === 'number') ? v : (v === '' || v === undefined ? '' : parseNumeroInventario(v)); };
+    datos[cod] = { nombre: String(fila[1] || '').replace(/\s+/g, ' ').trim(), ex: ex,
+      si: num(fila[3]), com: num(fila[4]), con: num(fila[5]) };
   });
   if (Object.keys(datos).length < 20) {
     return { error: '"' + nombre + '": solo pude leer ' + Object.keys(datos).length + ' producto(s), no lo usé.' };
   }
-  return { tipo: tipo, archivo: archivo, datos: datos };
+  return { tipo: tipo, archivo: archivo, datos: datos, fecha: fechaReporte || archivo.getLastUpdated() };
 }
 
-// Escribe "Inv" en los mismos dos bloques de siempre.
-function escribirHojaInv(hoja1, materiaPrima, colorantes) {
+// Escribe "Inv" en dos bloques, con las columnas del reporte de los lunes.
+// A:D son las que usa el resto del archivo (Codigo, Nombre, Codigo interno,
+// Existencia); E:H son informativas (Saldo inicial, Compras, Consumo, Fuente).
+function escribirHojaInv(hoja1, materiaPrima, colorantes, titulo) {
   var HEADER_FILL_MP = '#1DB37A', HEADER_FILL_COL = '#F2436B', HEADER_FILL = '#0B1F33';
-  var FILL_MP = '#EAF8F1', FILL_COL = '#FDEBEF';
+  var FILL_MP = '#EAF8F1', FILL_COL = '#FDEBEF', NC = 8;
+  if (hoja1.getMaxColumns() < NC) hoja1.insertColumnsAfter(hoja1.getMaxColumns(), NC - hoja1.getMaxColumns());
+  var filasNecesarias = materiaPrima.length + colorantes.length + 12;
+  if (hoja1.getMaxRows() < filasNecesarias) hoja1.insertRowsAfter(hoja1.getMaxRows(), filasNecesarias - hoja1.getMaxRows());
+  if (hoja1.getFilter()) hoja1.getFilter().remove();
   hoja1.clear();
+  var encabezado = function (fila, colC) {
+    hoja1.getRange(fila, 1, 1, NC)
+      .setValues([['Código', 'Nombre', colC, 'Existencia (kg) = Saldo final', 'Saldo inicial', 'Compras', 'Consumo', 'Fuente']])
+      .setFontColor('#FFFFFF').setFontWeight('bold').setBackground(HEADER_FILL)
+      .setHorizontalAlignment('center').setWrap(true);
+  };
+  var bloque = function (fila, datos, fill) {
+    if (!datos.length) return fila;
+    hoja1.getRange(fila, 1, datos.length, 3).setNumberFormat('@');
+    hoja1.getRange(fila, 1, datos.length, NC).setValues(datos).setBackground(fill);
+    return fila + datos.length;
+  };
+  var subtotal = function (fila, desde, texto) {
+    hoja1.getRange(fila, 2).setValue(texto).setFontWeight('bold');
+    ['D', 'E', 'F', 'G'].forEach(function (c, k) {
+      hoja1.getRange(fila, 4 + k).setFormula('=SUM(' + c + desde + ':' + c + (fila - 1) + ')').setFontWeight('bold');
+    });
+  };
+
   var r = 1;
-  hoja1.getRange(r, 1, 1, 4).merge().setValue('🧪 MATERIA PRIMA')
+  hoja1.getRange(r, 1, 1, NC).merge().setValue('🧪 MATERIA PRIMA' + (titulo ? '   ·   ' + titulo : ''))
     .setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(12).setBackground(HEADER_FILL_MP);
   r++;
-  hoja1.getRange(r, 1, 1, 4)
-    .setValues([['Código', 'Nombre', 'Código interno (para cruzar con Seguimiento)', 'Existencia (kg)']])
-    .setFontColor('#FFFFFF').setFontWeight('bold').setBackground(HEADER_FILL).setHorizontalAlignment('center');
+  encabezado(r, 'Código interno (para cruzar con Seguimiento)');
   r++;
   var mpStart = r;
-  if (materiaPrima.length) {
-    hoja1.getRange(r, 1, materiaPrima.length, 3).setNumberFormat('@');
-    hoja1.getRange(r, 1, materiaPrima.length, 4).setValues(materiaPrima).setBackground(FILL_MP);
-    r += materiaPrima.length;
-  }
-  hoja1.getRange(r, 2).setValue('Subtotal Materia Prima').setFontWeight('bold');
-  hoja1.getRange(r, 4).setFormula('=SUM(D' + mpStart + ':D' + (r - 1) + ')').setFontWeight('bold');
+  r = bloque(r, materiaPrima, FILL_MP);
+  subtotal(r, mpStart, 'Subtotal Materia Prima');
   r += 2;
-  hoja1.getRange(r, 1, 1, 4).merge().setValue('🎨 COLORANTES / MASTERBATCH')
+  hoja1.getRange(r, 1, 1, NC).merge().setValue('🎨 COLORANTES / MASTERBATCH' + (titulo ? '   ·   ' + titulo : ''))
     .setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(12).setBackground(HEADER_FILL_COL);
   r++;
-  hoja1.getRange(r, 1, 1, 4)
-    .setValues([['Código', 'Nombre', '(no aplica para colorante)', 'Existencia (kg)']])
-    .setFontColor('#FFFFFF').setFontWeight('bold').setBackground(HEADER_FILL).setHorizontalAlignment('center');
+  encabezado(r, '(no aplica para colorante)');
   r++;
   var colStart = r;
-  if (colorantes.length) {
-    hoja1.getRange(r, 1, colorantes.length, 1).setNumberFormat('@');
-    hoja1.getRange(r, 1, colorantes.length, 4).setValues(colorantes).setBackground(FILL_COL);
-    r += colorantes.length;
-  }
-  hoja1.getRange(r, 2).setValue('Subtotal Colorantes').setFontWeight('bold');
-  hoja1.getRange(r, 4).setFormula('=SUM(D' + colStart + ':D' + (r - 1) + ')').setFontWeight('bold');
-  hoja1.setColumnWidth(1, 110).setColumnWidth(2, 380).setColumnWidth(3, 220).setColumnWidth(4, 110);
-  hoja1.getRange(3, 4, Math.max(r - 2, 1), 1).setNumberFormat('#,##0');
+  r = bloque(r, colorantes, FILL_COL);
+  subtotal(r, colStart, 'Subtotal Colorantes');
+
+  hoja1.setColumnWidth(1, 110).setColumnWidth(2, 380).setColumnWidth(3, 200).setColumnWidth(4, 120)
+    .setColumnWidth(5, 95).setColumnWidth(6, 85).setColumnWidth(7, 85).setColumnWidth(8, 130);
+  hoja1.getRange(3, 4, Math.max(r - 2, 1), 4).setNumberFormat('#,##0');
+  hoja1.getRange(3, 8, Math.max(r - 2, 1), 1).setFontSize(9).setFontColor('#5C6B7A').setHorizontalAlignment('center');
+  // Lo que vino solo del reporte de la plataforma se marca en azul claro
+  var reglas = hoja1.getConditionalFormatRules().filter(function (x) {
+    var c = x.getBooleanCondition();
+    return !(c && String(c.getCriteriaValues()[0]).indexOf('Plataforma') !== -1);
+  });
+  reglas.push(SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=REGEXMATCH($H3&"","^Plataforma")')
+    .setBackground('#E3EFFD').setRanges([hoja1.getRange(3, 1, Math.max(r - 2, 1), NC)]).build());
+  hoja1.setConditionalFormatRules(reglas);
   hoja1.setFrozenRows(2);
 }
 
@@ -218,13 +257,23 @@ function filasInventarioDesdeTabla(datos) {
     var cEx = enc.indexOf(columna);
     if (cEx === -1) continue;
     var cCod = 0, cNom = enc.indexOf('NOMBRE');
+    var cSI = enc.indexOf('SALDOINICIAL'), cCom = enc.indexOf('COMPRAS'), cCon = enc.indexOf('CONSUMO');
     for (var c = 0; c < enc.length; c++) {
       if (/^C.?DIGO$/.test(enc[c])) { cCod = c; break; }
     }
     if (cNom === -1) cNom = cCod + 1;
+    // Fecha del reporte: la primera fecha que aparezca arriba de los titulos
+    var fecha = null;
+    for (var ff = 0; ff < f && !fecha; ff++) {
+      datos[ff].forEach(function (v) { if (!fecha && Object.prototype.toString.call(v) === '[object Date]') fecha = v; });
+    }
     return {
       columna: columna,
-      filas: datos.slice(f + 1).map(function (r) { return [String(r[cCod] || ''), String(r[cNom] || ''), r[cEx]]; })
+      fecha: fecha,
+      filas: datos.slice(f + 1).map(function (r) {
+        return [String(r[cCod] || ''), String(r[cNom] || ''), r[cEx],
+          cSI === -1 ? '' : r[cSI], cCom === -1 ? '' : r[cCom], cCon === -1 ? '' : r[cCon]];
+      })
     };
   }
   return null;
