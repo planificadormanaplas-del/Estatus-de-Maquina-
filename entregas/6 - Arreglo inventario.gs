@@ -115,7 +115,9 @@ function leerInventarioDesdeCarpeta() {
     (agregados.length ? '   ' + agregados.slice(0, 15).join('\n   ') + (agregados.length > 15 ? '\n   ...' : '') + '\n' : '') +
     '- Ya estaban y no venían en ningún reporte (se dejaron igual): ' + noVinieron + '\n\n' +
     'Materia Prima: ' + materiaPrima.length + ' productos · Colorantes: ' + colorantes.length + ' productos.\n' +
-    'Ya se cruzó contra el consumo.'
+    'Ya se cruzó contra el consumo.' +
+    (!semanal ? '\n\n⚠️ OJO: NO se usó el reporte semanal de los lunes, solo el de la plataforma.' +
+      (avisos.length ? '\nMotivo:\n- ' + avisos.slice(0, 3).join('\n- ') : '\nNo hay ningún reporte semanal (.xlsx con "Saldo Final") en la carpeta.') : '')
   );
 }
 
