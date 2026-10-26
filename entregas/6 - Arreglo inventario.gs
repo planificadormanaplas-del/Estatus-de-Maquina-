@@ -232,3 +232,13 @@ ALIAS_MATERIAL_MP = [
 ];
 ALIAS_MATERIAL_MP.sort(function (a, b) { return b[0].length - a[0].length; });
 DICCIONARIO_MATERIALES['30R40CD'] = { nombre: 'PP Copolímero 30R40CD', familia: 'PPC' };
+
+// Inicio y Dashboard se calculan solos con formulas: "Actualizar todo" no
+// tiene que redibujarlos (si alguna parte vieja todavia lo hace, esto lo evita).
+function actualizarDashboard() {
+  SpreadsheetApp.flush();
+}
+
+function actualizarPortada() {
+  SpreadsheetApp.flush();
+}
