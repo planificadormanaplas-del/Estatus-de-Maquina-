@@ -1140,7 +1140,7 @@ function guardarCopiaEnDrive() {
   // En el archivo de trabajo la fecha es =HOY() y cambia sola cada día.
   // En la copia se deja FIJA con la fecha de la orden, para que al abrirla
   // otro día siga mostrando su fecha.
-  var fijada = fijarFechaEnCopia(copia.getId(), new Date(anio, mesNumero - 1, dia));
+  var fijada = fijarFechaEnCopia(copia.getId(), anio, mesNumero, dia);
 
   ui.alert(
     '✅ Copia guardada en Drive',
@@ -1603,18 +1603,22 @@ function asegurarListaComponentes(maestro) {
 
 // Pone la fecha fija (valor, no fórmula) en la celda FECHA (H1) de las hojas
 // de orden de la copia. Las hojas que tienen ='01'!H1 la toman de la 01.
-function fijarFechaEnCopia(idCopia, fecha) {
+// La fecha se escribe como número de día de la hoja (sin hora), porque un
+// Date de Apps Script es medianoche en la zona horaria del script y, si la
+// hoja tiene otra zona, se ve como el día anterior.
+function fijarFechaEnCopia(idCopia, anio, mes, dia) {
+  var fecha = (Date.UTC(anio, mes - 1, dia) - Date.UTC(1899, 11, 30)) / 86400000;
   try {
     var copiaSs = SpreadsheetApp.openById(idCopia);
     var hoja01 = copiaSs.getSheetByName('01');
     if (!hoja01) return false;
-    hoja01.getRange('H1').setValue(fecha);
+    hoja01.getRange('H1').setValue(fecha).setNumberFormat('dd/mm/yyyy');
     for (var n = 2; n <= HOJAS_DE_ORDEN; n++) {
       var hoja = copiaSs.getSheetByName((n < 10 ? '0' : '') + n);
       if (!hoja) continue;
       var celda = hoja.getRange('H1');
       var f = celda.getFormula().toUpperCase();
-      if (f.indexOf('TODAY') !== -1 || f.indexOf('HOY') !== -1 || f === '') celda.setValue(fecha);
+      if (f.indexOf('TODAY') !== -1 || f.indexOf('HOY') !== -1 || f === '') celda.setValue(fecha).setNumberFormat('dd/mm/yyyy');
     }
     SpreadsheetApp.flush();
     return true;
