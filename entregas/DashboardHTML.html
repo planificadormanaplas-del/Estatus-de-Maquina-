@@ -180,7 +180,7 @@ var __D = (function () {
   return {
     ahora: Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm'),
     hoy: Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd'),
-    ordenes: seg.map(function (r) { return [r[0], r[1], r[2], r[3], r[5], r[6], r[7], r[8], r[9], r[17], r[19], r[20], r[21], r[22], r[23], r[24], r[25], r[26], r[27], r[28], r[29]]; }),
+    ordenes: seg.map(function (r) { return [r[0], r[1], r[2], r[3], r[5], r[6], r[7], r[8], r[9], r[17], r[19], r[20], r[21], r[22], r[23], r[24], r[25], r[26], r[27], r[28], r[29], r[4]]; }),
     materiales: tabla('Consumo por Material', 3, 11),
     colores: tabla('Resumen Consumo', 3, 11),
     codigos: (function () {
@@ -252,7 +252,7 @@ var __D = (function () {
   <section class="panel" id="p-prod">
     <div class="card mb"><h2>&#128200; Consumo total por d&#237;a</h2><div class="hint">Kg de material + colorante de las &#243;rdenes emitidas cada d&#237;a.</div><div class="chart" id="chDia2"></div></div>
     <div class="grid g2 mb">
-      <div class="card"><h2>&#127981; Productos m&#225;s fabricados</h2><div class="hint">Piezas en el periodo.</div><div class="bars" id="bProd"></div></div>
+      <div class="card"><h2>&#127981; Productos m&#225;s fabricados</h2><div class="hint">Productos completos en el periodo: se cuenta la pieza principal (componente /0), no se suman tapas, asas ni v&#225;lvulas.</div><div class="bars" id="bProd"></div></div>
       <div class="card"><h2>&#9881;&#65039; Kg por m&#225;quina</h2><div class="hint">Material usado por cada m&#225;quina.</div><div class="bars" id="bMaq"></div></div>
     </div>
     <div class="grid g2 mb">
@@ -350,15 +350,27 @@ var DATA = <?!= JSON.stringify(__D).replace(/</g, '\\u003c') ?>;
     return { nombre: nom, base: limpiarColor(nom), codigo: mc ? mc[1] : '', exist: num(r[1]), existTxt: r[1], diario: num(r[2]), dias: noUsa ? null : num(r[3]), noUsa: noUsa, kg: 0 };
   }) : colsGrp;
 
-  var dias = {}, prod = {}, maq = {}, kgMP = 0, kgCol = 0, prods = {};
+  var dias = {}, prod = {}, pcomp = {}, maq = {}, kgMP = 0, kgCol = 0, prods = {};
   O.forEach(function (o) {
     var kgT = num(o[11]) || 0, kc = num(o[10]) || 0, km = num(o[12]) || 0;
     dias[o[0]] = (dias[o[0]] || 0) + kgT;
-    prod[o[4]] = (prod[o[4]] || 0) + (num(o[7]) || 0);
+    var pk = String(o[21] == null ? '' : o[21]).trim(), pb = pk.split('-')[0] || String(o[4]);
+    if (!pcomp[pb]) pcomp[pb] = { c: {}, nm: [], na: [] };
+    pcomp[pb].c[pk] = (pcomp[pb].c[pk] || 0) + (num(o[7]) || 0);
+    (/\/0$/.test(pk) ? pcomp[pb].nm : pcomp[pb].na).push(String(o[4]).trim().toUpperCase());
     var m = 'M\u00e1q. ' + o[2];
     if (!maq[m]) maq[m] = { kg: 0, n: 0 };
     maq[m].kg += kgT; maq[m].n += 1;
     kgMP += km; kgCol += kc; prods[o[4]] = 1;
+  });
+  Object.keys(pcomp).forEach(function (pb) {
+    var g = pcomp[pb], cs = g.c, principal = 0, mayor = 0;
+    Object.keys(cs).forEach(function (k) { if (/\/0$/.test(k)) principal += cs[k]; if (cs[k] > mayor) mayor = cs[k]; });
+    var ns = g.nm.length ? g.nm : g.na, pre = ns[0] || pb;
+    ns.forEach(function (n) { var i = 0; while (i < pre.length && pre.charAt(i) === n.charAt(i)) i++; pre = pre.slice(0, i); });
+    var limpio = pre.replace(/[\s\/]*(C\/?|COLOR|DE|CON)?[\s\/]*$/, '').trim();
+    var nombre = limpio.length < 4 ? (ns[0] || pb) : limpio;
+    prod[nombre] = (prod[nombre] || 0) + (principal > 0 ? principal : mayor);
   });
   var fechas = Object.keys(dias).sort();
   var nMaq = Object.keys(maq).length;
