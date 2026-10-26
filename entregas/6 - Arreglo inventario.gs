@@ -187,7 +187,8 @@ function filasInventarioDesdeTabla(datos) {
 
 // Reporte en formato viejo (binario): las celdas vacias no dejan rastro en el
 // archivo, asi que no se puede contar de 5 en 5. Cada producto empieza con su
-// codigo; despues vienen nombre, unidad, almacen y los numeros. Si hay tres
+// codigo y termina en el siguiente codigo o en una fila "Total"; adentro van
+// nombre, unidad, almacen y los numeros. Si hay tres
 // numeros son Peso, Existencia y Total Peso; si hay uno solo es la Existencia.
 function filasInventarioDesdeBinario(strings) {
   var filas = [], actual = null;
@@ -196,6 +197,9 @@ function filasInventarioDesdeBinario(strings) {
     if (/^\d{2,3}-\d{2,4}-[\dA-Z\/\-]+$/i.test(t)) {
       if (actual) filas.push(actual);
       actual = { cod: t, resto: [] };
+    } else if (/^TOTAL/i.test(t)) {
+      if (actual) filas.push(actual);
+      actual = null;
     } else if (actual) {
       actual.resto.push(t);
     }
