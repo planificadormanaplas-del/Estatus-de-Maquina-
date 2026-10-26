@@ -127,23 +127,27 @@ function leerReporteInventario(archivo) {
   var nombre = archivo.getName();
   var tipoMime = archivo.getMimeType();
   var tabla = null, filas = null, tipo = 'plataforma';
+  var esXlsx = tipoMime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || /\.xlsx$/i.test(nombre);
   try {
     if (tipoMime === MimeType.GOOGLE_SHEETS) {
       tabla = SpreadsheetApp.openById(archivo.getId()).getSheets()[0].getDataRange().getValues();
-    } else if (tipoMime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || /\.xlsx$/i.test(nombre)) {
-      if (typeof Drive === 'undefined') {
-        return { error: '"' + nombre + '" es .xlsx: activa el servicio Drive API en Apps Script (Servicios + ▸ Drive API ▸ Agregar).' };
-      }
-      var copia;
-      try {
-        copia = Drive.Files.copy({ name: 'tmp inventario', mimeType: MimeType.GOOGLE_SHEETS }, archivo.getId());
-      } catch (e) {
-        copia = Drive.Files.copy({ title: 'tmp inventario', mimeType: MimeType.GOOGLE_SHEETS }, archivo.getId(), { convert: true });
-      }
-      try {
-        tabla = SpreadsheetApp.openById(copia.id).getSheets()[0].getDataRange().getValues();
-      } finally {
-        DriveApp.getFileById(copia.id).setTrashed(true);
+    } else if (esXlsx) {
+      // El .xlsx se abre aqui mismo (es un zip con la tabla en texto). Solo si
+      // eso falla se intenta convertirlo con el servicio Drive API.
+      try { tabla = tablaDesdeXlsx(archivo.getBlob()); } catch (e) { tabla = null; }
+      if (!tabla || !tabla.length) {
+        if (typeof Drive === 'undefined') return { error: 'No pude abrir el .xlsx "' + nombre + '".' };
+        var copia;
+        try {
+          copia = Drive.Files.copy({ name: 'tmp inventario', mimeType: MimeType.GOOGLE_SHEETS }, archivo.getId());
+        } catch (e) {
+          copia = Drive.Files.copy({ title: 'tmp inventario', mimeType: MimeType.GOOGLE_SHEETS }, archivo.getId(), { convert: true });
+        }
+        try {
+          tabla = SpreadsheetApp.openById(copia.id).getSheets()[0].getDataRange().getValues();
+        } finally {
+          DriveApp.getFileById(copia.id).setTrashed(true);
+        }
       }
     } else {
       var strings = extraerStringsBinario(archivo.getBlob().getBytes());
@@ -242,6 +246,89 @@ function escribirHojaInv(hoja1, materiaPrima, colorantes, titulo) {
   hoja1.setFrozenRows(2);
 }
 
+// ---- Lector de .xlsx sin servicios extra ----
+// Un .xlsx es un zip; adentro, la hoja esta en xl/worksheets/sheetN.xml y los
+// textos repetidos en xl/sharedStrings.xml. Devuelve la primera hoja como
+// tabla (arreglo de filas), igual que getValues().
+function tablaDesdeXlsx(blob) {
+  var archivos = Utilities.unzip(blob.setContentType('application/zip'));
+  var porNombre = {};
+  archivos.forEach(function (f) { porNombre[f.getName()] = f.getDataAsString('UTF-8'); });
+  var textos = porNombre['xl/sharedStrings.xml'] ? leerTextosCompartidosXlsx(porNombre['xl/sharedStrings.xml']) : [];
+  return leerHojaXlsx(porNombre[rutaPrimeraHojaXlsx(porNombre)], textos);
+}
+
+function rutaPrimeraHojaXlsx(porNombre) {
+  var libro = porNombre['xl/workbook.xml'] || '', rels = porNombre['xl/_rels/workbook.xml.rels'] || '';
+  var m = /<sheet\b[^>]*\br:id="([^"]+)"/.exec(libro);
+  if (m) {
+    var re = /<Relationship\b([^>]*)\/?>/g, x;
+    while ((x = re.exec(rels))) {
+      var id = /\bId="([^"]+)"/.exec(x[1]), destino = /\bTarget="([^"]+)"/.exec(x[1]);
+      if (id && destino && id[1] === m[1]) {
+        var ruta = destino[1].replace(/^\//, '');
+        return ruta.indexOf('xl/') === 0 ? ruta : 'xl/' + ruta;
+      }
+    }
+  }
+  return Object.keys(porNombre).filter(function (n) { return /^xl\/worksheets\/[^\/]+\.xml$/.test(n); }).sort()[0];
+}
+
+function textoXml(s) {
+  return String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, function (m, n) { return String.fromCharCode(Number(n)); }).replace(/&amp;/g, '&');
+}
+
+function juntarTextosXml(xml) {
+  var partes = [], re = /<t\b[^>]*>([\s\S]*?)<\/t>/g, m;
+  xml = xml.replace(/<rPh\b[\s\S]*?<\/rPh>/g, '');
+  while ((m = re.exec(xml))) partes.push(textoXml(m[1]));
+  return partes.join('');
+}
+
+function leerTextosCompartidosXlsx(xml) {
+  var lista = [], re = /<si\b[^>]*>([\s\S]*?)<\/si>/g, m;
+  while ((m = re.exec(xml))) lista.push(juntarTextosXml(m[1]));
+  return lista;
+}
+
+function leerHojaXlsx(xml, textos) {
+  var tabla = [], reFila = /<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g, f;
+  var columna = function (letras) {
+    var n = 0;
+    for (var i = 0; i < letras.length; i++) n = n * 26 + (letras.charCodeAt(i) - 64);
+    return n - 1;
+  };
+  while ((f = reFila.exec(xml || ''))) {
+    var numFila = /\br="(\d+)"/.exec(f[1]);
+    var fila = numFila ? Number(numFila[1]) - 1 : tabla.length;
+    var valores = [], reCelda = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g, c, siguiente = 0;
+    while ((c = reCelda.exec(f[2] || ''))) {
+      var ref = /\br="([A-Z]+)\d+"/.exec(c[1]);
+      var col = ref ? columna(ref[1]) : siguiente;
+      siguiente = col + 1;
+      var tipo = (/\bt="([^"]+)"/.exec(c[1]) || [])[1] || 'n';
+      var v = /<v>([\s\S]*?)<\/v>/.exec(c[2] || '');
+      var valor = '';
+      if (tipo === 's') valor = v ? (textos[Number(v[1])] || '') : '';
+      else if (tipo === 'inlineStr') valor = juntarTextosXml(c[2] || '');
+      else if (tipo === 'str' || tipo === 'e') valor = v ? textoXml(v[1]) : '';
+      else if (tipo === 'b') valor = v ? v[1] === '1' : '';
+      else valor = v ? Number(v[1]) : '';
+      valores[col] = valor;
+    }
+    tabla[fila] = valores;
+  }
+  var ancho = 0;
+  tabla.forEach(function (r) { if (r && r.length > ancho) ancho = r.length; });
+  for (var i = 0; i < tabla.length; i++) {
+    var r = tabla[i] || [];
+    for (var k = 0; k < ancho; k++) if (r[k] === undefined) r[k] = '';
+    tabla[i] = r;
+  }
+  return tabla;
+}
+
 function normalizarEncabezadoInv(s) {
   return String(s || '').toUpperCase().replace(/[^A-Z]/g, '');
 }
@@ -267,7 +354,13 @@ function filasInventarioDesdeTabla(datos) {
     // Fecha del reporte: la primera fecha que aparezca arriba de los titulos
     var fecha = null;
     for (var ff = 0; ff < f && !fecha; ff++) {
-      datos[ff].forEach(function (v) { if (!fecha && Object.prototype.toString.call(v) === '[object Date]') fecha = v; });
+      var llenas = datos[ff].filter(function (v) { return v !== '' && v !== null && v !== undefined; });
+      llenas.forEach(function (v) { if (!fecha && Object.prototype.toString.call(v) === '[object Date]') fecha = v; });
+      // En el .xlsx leido directo la fecha llega como numero de serie de Excel
+      if (!fecha && llenas.length === 1 && typeof llenas[0] === 'number' && llenas[0] > 40000 && llenas[0] < 60000) {
+        var d = new Date(Math.round((llenas[0] - 25569) * 86400000));
+        fecha = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+      }
     }
     return {
       columna: columna,
