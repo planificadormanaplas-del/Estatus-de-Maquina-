@@ -1,6 +1,7 @@
 /* Arreglo de "Leer inventario mas reciente (carpeta)".
-   - Lee los reportes del sistema (.xls de 5 o 7 columnas) y el reporte semanal
-     de materia prima (.xlsx con "Saldo Final").
+   - Lee los DOS reportes de la carpeta: el semanal de los lunes (.xlsx con
+     "Saldo Final") y el de la plataforma (.xls de 5 o 7 columnas). Si un
+     codigo viene en los dos, gana el semanal de los lunes.
    - Ya no borra el inventario: actualiza la existencia de lo que ya estaba,
      AGREGA los codigos nuevos y deja igual lo que no venga en el archivo.
    Este archivo reemplaza esas funciones de las partes anteriores.
@@ -9,39 +10,44 @@
 function leerInventarioDesdeCarpeta() {
   var ui = SpreadsheetApp.getUi();
   var folder = DriveApp.getFolderById(CARPETA_INVENTARIO_ID);
-  var files = folder.getFiles();
-  var masReciente = null;
-  while (files.hasNext()) {
-    var f = files.next();
-    if (f.isTrashed()) continue;
-    if (!masReciente || f.getLastUpdated().getTime() > masReciente.getLastUpdated().getTime()) masReciente = f;
+
+  // Archivos de la carpeta, del mas nuevo al mas viejo
+  var lista = [];
+  var it = folder.getFiles();
+  while (it.hasNext()) {
+    var f = it.next();
+    if (!f.isTrashed()) lista.push(f);
   }
-  if (!masReciente) {
+  lista.sort(function (x, y) { return y.getLastUpdated().getTime() - x.getLastUpdated().getTime(); });
+  if (!lista.length) {
     ui.alert('No encontré ningún archivo en la carpeta de inventario.');
     return;
   }
 
-  var filas = leerFilasArchivoInventario(masReciente, ui);
-  if (!filas) return;
-
-  // Lo que trae el archivo: solo materia prima (01-) y colorantes (02-).
-  // Los 04- son bolsas y empaques, y los 13- productos de limpieza y aceites.
-  var delArchivo = {};
-  filas.forEach(function (fila) {
-    var cod = String(fila[0] || '').trim();
-    if (!/^0[12]-\d{2}-\d{4}$/.test(cod)) return;
-    var ex = (typeof fila[2] === 'number') ? fila[2] : parseNumeroInventario(fila[2]);
-    if (ex === null || ex === undefined || ex === '') return;
-    delArchivo[cod] = { nombre: String(fila[1] || '').replace(/\s+/g, ' ').trim(), ex: ex };
-  });
-  var nLeidos = Object.keys(delArchivo).length;
-  if (nLeidos < 20) {
-    ui.alert('Solo pude leer ' + nLeidos + ' producto(s) de "' + masReciente.getName() + '". ' +
-      'Parece que el archivo no se leyó bien, así que NO cambié el inventario.');
+  // Se usan dos reportes: el SEMANAL de los lunes (columna "Saldo Final") y
+  // el de la PLATAFORMA (el .xls de nombre raro, columna "Existencia").
+  // De cada tipo se toma el mas reciente.
+  var semanal = null, plataforma = null, avisos = [];
+  for (var i = 0; i < lista.length && (!semanal || !plataforma); i++) {
+    var leido = leerReporteInventario(lista[i]);
+    if (leido.error) { avisos.push(leido.error); continue; }
+    if (leido.tipo === 'semanal' && !semanal) semanal = leido;
+    if (leido.tipo === 'plataforma' && !plataforma) plataforma = leido;
+  }
+  if (!semanal && !plataforma) {
+    ui.alert('No pude leer ningún reporte de inventario de la carpeta. No cambié nada en Inv.' +
+      (avisos.length ? '\n\n' + avisos.slice(0, 3).join('\n') : ''));
     return;
   }
 
-  // Lo que ya hay en Inv (se conserva lo que no venga en el archivo)
+  // Primero la plataforma y encima el semanal: si un codigo viene en los dos,
+  // gana el semanal de los lunes. Lo que solo viene en uno tambien entra.
+  var delArchivo = {}, deDonde = {};
+  [plataforma, semanal].forEach(function (rep) {
+    if (!rep) return;
+    Object.keys(rep.datos).forEach(function (cod) { delArchivo[cod] = rep.datos[cod]; deDonde[cod] = rep.tipo; });
+  });
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var hoja1 = ss.getSheetByName('Inv');
   var todos = {};
@@ -67,6 +73,7 @@ function leerInventarioDesdeCarpeta() {
     }
   });
   var noVinieron = Object.keys(todos).filter(function (cod) { return !delArchivo[cod]; }).length;
+  var soloPlataforma = Object.keys(deDonde).filter(function (cod) { return deDonde[cod] === 'plataforma'; }).length;
 
   var materiaPrima = [], colorantes = [];
   Object.keys(todos).forEach(function (cod) {
@@ -84,59 +91,72 @@ function leerInventarioDesdeCarpeta() {
   actualizarInventarioCore();
   actualizarPortada();
 
+  var fecha = function (rep) { return Utilities.formatDate(rep.archivo.getLastUpdated(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'); };
   ui.alert(
-    'Inventario actualizado desde "' + masReciente.getName() + '"\n\n' +
-    '- Leídos del archivo: ' + nLeidos + '\n' +
-    '- Con existencia nueva: ' + actualizados + '\n' +
+    'Inventario actualizado.\n\n' +
+    '📅 Semanal (lunes): ' + (semanal ? '"' + semanal.archivo.getName() + '" (' + fecha(semanal) + ') — ' + Object.keys(semanal.datos).length + ' productos' : 'no encontré ninguno') + '\n' +
+    '💻 Plataforma: ' + (plataforma ? '"' + plataforma.archivo.getName() + '" (' + fecha(plataforma) + ') — ' + Object.keys(plataforma.datos).length + ' productos' : 'no encontré ninguno') + '\n' +
+    (semanal && plataforma ? '   Si un código viene en los dos, se usó el semanal. ' + soloPlataforma + ' código(s) solo venían en el de la plataforma.\n' : '') +
+    '\n- Con existencia nueva: ' + actualizados + '\n' +
     '- Códigos NUEVOS agregados: ' + agregados.length + '\n' +
     (agregados.length ? '   ' + agregados.slice(0, 15).join('\n   ') + (agregados.length > 15 ? '\n   ...' : '') + '\n' : '') +
-    '- Ya estaban y no venían en el archivo (se dejaron igual): ' + noVinieron + '\n\n' +
+    '- Ya estaban y no venían en ningún reporte (se dejaron igual): ' + noVinieron + '\n\n' +
     'Materia Prima: ' + materiaPrima.length + ' productos · Colorantes: ' + colorantes.length + ' productos.\n' +
     'Ya se cruzó contra el consumo.'
   );
 }
 
-// Devuelve [Codigo, Nombre, Existencia] por fila, o null si no se pudo leer.
-function leerFilasArchivoInventario(archivo, ui) {
-  var tipo = archivo.getMimeType();
+// Lee un archivo de la carpeta. Devuelve { tipo: 'semanal' | 'plataforma',
+// archivo, datos: { codigo: { nombre, ex } } } o { error: 'texto' }.
+function leerReporteInventario(archivo) {
   var nombre = archivo.getName();
-  if (tipo === MimeType.GOOGLE_SHEETS) {
-    return filasDeTablaOAviso(SpreadsheetApp.openById(archivo.getId()), nombre, ui);
-  }
-  var esXlsx = tipo === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || /\.xlsx$/i.test(nombre);
-  if (esXlsx) {
-    // Un .xlsx hay que convertirlo a Hoja de Google para poder leerlo.
-    if (typeof Drive === 'undefined') {
-      ui.alert('"' + nombre + '" es un archivo .xlsx. Para leerlo, activa una sola vez el servicio Drive API: ' +
-        'en Apps Script, a la izquierda, "Servicios" (+) ▸ Drive API ▸ Agregar. ' +
-        'O en Drive, abre el archivo con "Abrir con ▸ Hojas de cálculo de Google" y vuelve a usar este botón. ' +
-        'No cambié nada en Inv.');
-      return null;
+  var tipoMime = archivo.getMimeType();
+  var tabla = null, filas = null, tipo = 'plataforma';
+  try {
+    if (tipoMime === MimeType.GOOGLE_SHEETS) {
+      tabla = SpreadsheetApp.openById(archivo.getId()).getSheets()[0].getDataRange().getValues();
+    } else if (tipoMime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || /\.xlsx$/i.test(nombre)) {
+      if (typeof Drive === 'undefined') {
+        return { error: '"' + nombre + '" es .xlsx: activa el servicio Drive API en Apps Script (Servicios + ▸ Drive API ▸ Agregar).' };
+      }
+      var copia;
+      try {
+        copia = Drive.Files.copy({ name: 'tmp inventario', mimeType: MimeType.GOOGLE_SHEETS }, archivo.getId());
+      } catch (e) {
+        copia = Drive.Files.copy({ title: 'tmp inventario', mimeType: MimeType.GOOGLE_SHEETS }, archivo.getId(), { convert: true });
+      }
+      try {
+        tabla = SpreadsheetApp.openById(copia.id).getSheets()[0].getDataRange().getValues();
+      } finally {
+        DriveApp.getFileById(copia.id).setTrashed(true);
+      }
+    } else {
+      var strings = extraerStringsBinario(archivo.getBlob().getBytes());
+      if (strings.length < 10) return { error: '"' + nombre + '" no tiene la estructura de un reporte de inventario.' };
+      filas = filasInventarioDesdeBinario(strings);
     }
-    var copia;
-    try {
-      copia = Drive.Files.copy({ name: 'tmp inventario', mimeType: MimeType.GOOGLE_SHEETS }, archivo.getId());
-    } catch (e) {
-      copia = Drive.Files.copy({ title: 'tmp inventario', mimeType: MimeType.GOOGLE_SHEETS }, archivo.getId(), { convert: true });
-    }
-    try {
-      return filasDeTablaOAviso(SpreadsheetApp.openById(copia.id), nombre, ui);
-    } finally {
-      DriveApp.getFileById(copia.id).setTrashed(true);
-    }
+  } catch (e) {
+    return { error: 'No pude abrir "' + nombre + '": ' + e.message };
   }
-  var strings = extraerStringsBinario(archivo.getBlob().getBytes());
-  if (strings.length < 10) {
-    ui.alert('No pude leer "' + nombre + '": no tiene la estructura esperada. No cambié nada en Inv.');
-    return null;
+  if (tabla) {
+    var leidas = filasInventarioDesdeTabla(tabla);
+    if (!leidas) return { error: '"' + nombre + '" no tiene columna "Saldo Final" ni "Existencia".' };
+    filas = leidas.filas;
+    tipo = leidas.columna === 'SALDOFINAL' ? 'semanal' : 'plataforma';
   }
-  return filasInventarioDesdeBinario(strings);
-}
 
-function filasDeTablaOAviso(libro, nombre, ui) {
-  var filas = filasInventarioDesdeTabla(libro.getSheets()[0].getDataRange().getValues());
-  if (!filas) ui.alert('No encontré la columna "Existencia" ni "Saldo Final" en "' + nombre + '". No cambié nada en Inv.');
-  return filas;
+  var datos = {};
+  filas.forEach(function (fila) {
+    var cod = String(fila[0] || '').trim();
+    if (!/^0[12]-\d{2}-\d{4}$/.test(cod)) return;
+    var ex = (typeof fila[2] === 'number') ? fila[2] : parseNumeroInventario(fila[2]);
+    if (ex === null || ex === undefined || ex === '') return;
+    datos[cod] = { nombre: String(fila[1] || '').replace(/\s+/g, ' ').trim(), ex: ex };
+  });
+  if (Object.keys(datos).length < 20) {
+    return { error: '"' + nombre + '": solo pude leer ' + Object.keys(datos).length + ' producto(s), no lo usé.' };
+  }
+  return { tipo: tipo, archivo: archivo, datos: datos };
 }
 
 // Escribe "Inv" en los mismos dos bloques de siempre.
@@ -194,15 +214,18 @@ function esNumeroInventario(s) {
 function filasInventarioDesdeTabla(datos) {
   for (var f = 0; f < Math.min(datos.length, 15); f++) {
     var enc = datos[f].map(normalizarEncabezadoInv);
-    var cEx = enc.indexOf('SALDOFINAL');
-    if (cEx === -1) cEx = enc.indexOf('EXISTENCIA');
+    var columna = enc.indexOf('SALDOFINAL') !== -1 ? 'SALDOFINAL' : 'EXISTENCIA';
+    var cEx = enc.indexOf(columna);
     if (cEx === -1) continue;
     var cCod = 0, cNom = enc.indexOf('NOMBRE');
     for (var c = 0; c < enc.length; c++) {
       if (/^C.?DIGO$/.test(enc[c])) { cCod = c; break; }
     }
     if (cNom === -1) cNom = cCod + 1;
-    return datos.slice(f + 1).map(function (r) { return [String(r[cCod] || ''), String(r[cNom] || ''), r[cEx]]; });
+    return {
+      columna: columna,
+      filas: datos.slice(f + 1).map(function (r) { return [String(r[cCod] || ''), String(r[cNom] || ''), r[cEx]]; })
+    };
   }
   return null;
 }
