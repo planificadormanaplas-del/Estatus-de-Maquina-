@@ -207,3 +207,24 @@ function filasInventarioDesdeBinario(strings) {
     return [x.cod, x.resto[0] || '', ex];
   });
 }
+
+// Nombres de la columna C de Inv ("Codigo interno"). Reemplaza la lista del
+// archivo anterior: el 30R ahora se llama con su nombre completo 30R40CD y los
+// materiales que no se usan en las ordenes tambien llevan un nombre corto.
+ALIAS_MATERIAL_MP = [
+  ['20H10NA', '20H10NA'], ['11H01A', '11H01A'], ['60C90ND', '60C90ND'],
+  ['2213', '2213'], ['20400', '2213'], ['2111', '2213'],
+  ['0240', '0240'], ['6200B', '6200B'], ['0506C', '0506C'],
+  ['2811', '2811'], ['2908', '2908'], ['40H92C', '40H92C'],
+  ['30R40CD', '30R40CD'], ['30R', '30R40CD'], ['20H01NA', '20H01NA'], ['02R01CA-1', '02R01CA-1'],
+  ['35R80', '35R80'], ['35R81', '35R81'], ['35R82', '35R82'], ['35R83', '35R83'],
+  ['05C06', '05C06'], ['478', '478'],
+  ['18H86', '18H86'], ['45R60CD', '45R60CD'],
+  ['GHB1MA40.328', 'CHEMITON AZUL AGUA'], ['GHB1MA30.171', 'CHEMITON VERDE'], ['CHEMITON COLOR AMARILLO', 'CHEMITON AMARILLO'],
+  ['M-90', 'ACETAL M-90'], ['K-300', 'ACETAL K-300'], ['RUBBAPEX', 'CAUCHO 7008'],
+  ['AG12AO', 'ABS AG12AO'], ['1500-1060', 'NYLON 1500'], ['5203HE', 'PS CRISTAL 5203HE'],
+  ['649D', 'PS CRISTAL 649D'], ['303-80111', 'PC LEXAN 303'], ['141-7041', 'PC LEXAN 141'],
+  ['12-70-0000', 'GOMA 12-70'], ['BLANCO MI :11', 'PP BLANCO MI11']
+];
+ALIAS_MATERIAL_MP.sort(function (a, b) { return b[0].length - a[0].length; });
+DICCIONARIO_MATERIALES['30R40CD'] = { nombre: 'PP Copolímero 30R40CD', familia: 'PPC' };
