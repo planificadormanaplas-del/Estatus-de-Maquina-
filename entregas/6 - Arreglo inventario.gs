@@ -432,3 +432,12 @@ function actualizarDashboard() {
 function actualizarPortada() {
   SpreadsheetApp.flush();
 }
+
+// Recetas de Material: el nombre de cada componente sin el porcentaje ni lo
+// que va entre parentesis ("60% 05C06" -> "05C06", "2811(HD2000-GP)" -> "2811").
+// Reemplaza la version anterior, que dejaba el "60%" pegado y la receta
+// salia como "(definir receta)" en Consumo por Material.
+function formulaComponente(fila, slot) {
+  return '=IF($A' + fila + '="","",IFERROR(UPPER(TRIM(REGEXREPLACE(REGEXREPLACE(INDEX(SPLIT($A' + fila +
+    ',"+"),1,' + slot + '),"\\([^)]*\\)",""),"^\\s*\\d+(\\.\\d+)?\\s*%",""))),""))';
+}
