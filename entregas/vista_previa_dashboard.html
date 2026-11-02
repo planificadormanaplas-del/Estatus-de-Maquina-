@@ -340,7 +340,7 @@ var DATA = {"ahora": "21/10/2026 16:05", "hoy": "2026-10-21", "ordenes": [["2026
     Object.keys(cs).forEach(function (k) { if (/\/0$/.test(k)) principal += cs[k]; if (cs[k] > mayor) mayor = cs[k]; });
     var ns = g.nm.length ? g.nm : g.na, pre = ns[0] || pb;
     ns.forEach(function (n) { var i = 0; while (i < pre.length && pre.charAt(i) === n.charAt(i)) i++; pre = pre.slice(0, i); });
-    var limpio = pre.replace(/[\s\/]*(C\/?|COLOR|DE|CON)?[\s\/]*$/, '').trim();
+    var limpio = pre.replace(/(?:[\s\/]+(?:C\/?|COLOR|DE|CON))?[\s\/]*$/, '').trim();
     var nombre = limpio.length < 4 ? (ns[0] || pb) : limpio;
     prod[nombre] = (prod[nombre] || 0) + (principal > 0 ? principal : mayor);
   });

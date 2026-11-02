@@ -441,3 +441,253 @@ function formulaComponente(fila, slot) {
   return '=IF($A' + fila + '="","",IFERROR(UPPER(TRIM(REGEXREPLACE(REGEXREPLACE(INDEX(SPLIT($A' + fila +
     ',"+"),1,' + slot + '),"\\([^)]*\\)",""),"^\\s*\\d+(\\.\\d+)?\\s*%",""))),""))';
 }
+
+// ============================================================
+// HISTORICO TOTAL: junta el Seguimiento de todos los cortes guardados en el
+// archivo Historico (mas el periodo actual, si tiene ordenes) en una sola
+// hoja, y arma un resumen de todo junto. Se crea en el archivo Historico:
+//   "📚 Todos los cortes — Seguimiento"  (todas las ordenes, una tras otra)
+//   "📈 Resumen de todos los cortes"     (por corte, material, color y producto)
+// Se puede volver a generar cuantas veces se quiera: siempre se rehace entero.
+// ============================================================
+var HOJA_TODOS_SEGUIMIENTO = '📚 Todos los cortes — Seguimiento';
+var HOJA_TODOS_RESUMEN = '📈 Resumen de todos los cortes';
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Seguimiento')
+    .addItem('📥 Traer órdenes de la carpeta', 'importarDesdeCarpeta')
+    .addItem('🔍 Verificar cambios (sincronizar con la carpeta)', 'verificarCambios')
+    .addItem('🔄 Actualizar todo', 'actualizarTodo')
+    .addItem('🏠 Actualizar portada (Inicio)', 'actualizarPortada')
+    .addItem('🍳 Buscar recetas de material faltantes', 'detectarRecetasFaltantesBoton')
+    .addItem('📥 Leer inventario más reciente (carpeta)', 'leerInventarioDesdeCarpeta')
+    .addItem('📦 Cruzar inventario (Inv)', 'actualizarInventario')
+    .addItem('🧹 Eliminar filas duplicadas', 'eliminarFilasDuplicadas')
+    .addSeparator()
+    .addItem('📅 Corte del mes (cerrar y archivar)', 'corteDelMesYJuntar')
+    .addItem('📚 Juntar todos los cortes (histórico total)', 'generarHistoricoTotal')
+    .addSeparator()
+    .addItem('🔒 Congelar y proteger fórmulas', 'configurarProteccionYFormato')
+    .addItem('🔧 Reparar errores (#ERROR!)', 'repararErroresConocidos')
+    .addItem('🎨 Colorear pestañas por tipo', 'colorearPestanas')
+    .addItem('🗑️ Borrar', 'limpiarDatosSeptiembre')
+    .addToUi();
+}
+
+// El corte de siempre y, si se hizo, el historico total se rehace solo.
+function corteDelMesYJuntar() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Seguimiento');
+  var habia = contarOrdenesSeguimiento(sh);
+  corteDelMes();
+  if (habia > 0 && contarOrdenesSeguimiento(sh) === 0) {
+    try { generarHistoricoTotal(true); } catch (e) {}
+  }
+}
+
+function contarOrdenesSeguimiento(sh) {
+  if (!sh || sh.getLastRow() < 5) return 0;
+  return sh.getRange(5, 9, sh.getLastRow() - 4, 1).getValues()
+    .filter(function (r) { return typeof r[0] === 'number'; }).length;
+}
+
+// Filas de ordenes de una hoja con el formato de Seguimiento (30 columnas, A:AD).
+function ordenesDeHojaSeguimiento(hoja) {
+  if (!hoja || hoja.getLastRow() < 2) return { encabezado: null, filas: [] };
+  var datos = hoja.getRange(1, 1, hoja.getLastRow(), Math.min(hoja.getLastColumn(), 30)).getValues();
+  var fEnc = -1;
+  for (var f = 0; f < Math.min(datos.length, 10) && fEnc === -1; f++) {
+    if (/^FECHA EMISI/.test(normalizar(datos[f][0]))) fEnc = f;
+  }
+  if (fEnc === -1) return { encabezado: null, filas: [] };
+  var filas = datos.slice(fEnc + 1).filter(function (r) { return typeof r[8] === 'number' && r[0] !== ''; })
+    .map(function (r) { while (r.length < 30) r.push(''); return r; });
+  return { encabezado: datos[fEnc], filas: filas };
+}
+
+// Algunas ordenes viejas tienen dia y mes al reves (1 de septiembre guardado
+// como 9 de enero). Si la fecha cae fuera de los 70 dias antes del corte y al
+// voltearla si cae adentro, se voltea.
+function corregirFechaOrden(f, fechaCorte) {
+  if (Object.prototype.toString.call(f) !== '[object Date]') return f;
+  var desde = new Date(fechaCorte.getTime() - 70 * 86400000), hasta = new Date(fechaCorte.getTime() + 86400000);
+  if (f >= desde && f <= hasta) return f;
+  if (f.getDate() > 12) return f;
+  var v = new Date(f.getFullYear(), f.getDate() - 1, f.getMonth() + 1);
+  return (v >= desde && v <= hasta) ? v : f;
+}
+
+function fechaDeCorte(etiqueta) {
+  var m = /(\d{2})-(\d{2})-(\d{4})/.exec(etiqueta);
+  return m ? new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])) : new Date(2999, 0, 1);
+}
+
+function generarHistoricoTotal(silencioso) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var historico = obtenerArchivoHistorico();
+
+  // 1) Juntar: cada corte guardado + el periodo actual
+  var cortes = [];
+  historico.getSheets().forEach(function (h) {
+    var m = /^(Cierre \d{2}-\d{2}-\d{4}(?: \(\d+\))?) — Seguimiento$/.exec(h.getName());
+    if (!m) return;
+    var leido = ordenesDeHojaSeguimiento(h);
+    var fc = fechaDeCorte(m[1]);
+    leido.filas.forEach(function (r) { r[0] = corregirFechaOrden(r[0], fc); });
+    if (leido.filas.length) cortes.push({ etiqueta: m[1], fecha: fc, filas: leido.filas, enc: leido.encabezado });
+  });
+  cortes.sort(function (a, b) { return a.fecha - b.fecha; });
+  var actual = ordenesDeHojaSeguimiento(ss.getSheetByName('Seguimiento'));
+  if (actual.filas.length) cortes.push({ etiqueta: 'Actual (sin cerrar)', fecha: new Date(), filas: actual.filas, enc: actual.encabezado });
+  if (!cortes.length) {
+    if (!silencioso) SpreadsheetApp.getUi().alert('No encontré órdenes en ningún corte del archivo "' + historico.getName() + '".');
+    return;
+  }
+
+  var encabezado = ['Corte'].concat((actual.encabezado || cortes[cortes.length - 1].enc).map(function (x) { return String(x); }));
+  var todas = [];
+  cortes.forEach(function (c) { c.filas.forEach(function (r) { todas.push([c.etiqueta].concat(r)); }); });
+
+  var hTodo = historico.getSheetByName(HOJA_TODOS_SEGUIMIENTO) || historico.insertSheet(HOJA_TODOS_SEGUIMIENTO, 0);
+  hTodo.clear();
+  if (hTodo.getMaxRows() < todas.length + 3) hTodo.insertRowsAfter(hTodo.getMaxRows(), todas.length + 3 - hTodo.getMaxRows());
+  if (hTodo.getMaxColumns() < 31) hTodo.insertColumnsAfter(hTodo.getMaxColumns(), 31 - hTodo.getMaxColumns());
+  hTodo.getRange(1, 1).setValue('📚 TODAS LAS ÓRDENES DE TODOS LOS CORTES  ·  ' + todas.length + ' renglones  ·  generado el ' +
+    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'))
+    .setFontWeight('bold').setFontSize(12);
+  hTodo.getRange(2, 1, 1, 31).setValues([encabezado]).setFontWeight('bold').setFontColor('#FFFFFF')
+    .setBackground('#0B1F33').setWrap(true).setVerticalAlignment('middle');
+  hTodo.getRange(3, 1, todas.length, 31).setValues(todas);
+  hTodo.getRange(3, 2, todas.length, 1).setNumberFormat('dd/MM/yyyy');
+  hTodo.getRange(3, 20, todas.length, 11).setNumberFormat('#,##0.00');
+  hTodo.getRange(3, 20, todas.length, 1).setNumberFormat('0.0%');
+  hTodo.setFrozenRows(2);
+  hTodo.setFrozenColumns(2);
+
+  // 2) Resumen
+  var K = { fecha: 1, cant: 9, prodComp: 5, prod: 6, color: 10, codColor: 18, kgCol: 20, kgTot: 21, kgMP: 22 };
+  var n = cortes.length, etiquetas = cortes.map(function (c) { return c.etiqueta; });
+  var porCorte = cortes.map(function (c) {
+    var fechas = {}, mp = 0, col = 0, tot = 0, min = null, max = null;
+    c.filas.forEach(function (r) {
+      var f = r[K.fecha - 1];
+      if (Object.prototype.toString.call(f) === '[object Date]') {
+        fechas[f.toDateString()] = 1;
+        if (!min || f < min) min = f;
+        if (!max || f > max) max = f;
+      }
+      mp += Number(r[K.kgMP - 1]) || 0; col += Number(r[K.kgCol - 1]) || 0; tot += Number(r[K.kgTot - 1]) || 0;
+    });
+    return [c.etiqueta, min || '', max || '', c.filas.length, Object.keys(fechas).length, mp, col, tot];
+  });
+  var sumaCol = function (i) { return porCorte.reduce(function (s, x) { return s + (Number(x[i]) || 0); }, 0); };
+  porCorte.push(['TOTAL', '', '', sumaCol(3), sumaCol(4), sumaCol(5), sumaCol(6), sumaCol(7)]);
+
+  var acumular = function (mapa, clave, nombre, i, kg) {
+    if (!clave || !kg) return;
+    if (!mapa[clave]) { mapa[clave] = { nombre: nombre, kg: [] }; for (var j = 0; j < n; j++) mapa[clave].kg.push(0); }
+    mapa[clave].kg[i] += kg;
+  };
+  var mats = {}, cols = {}, prods = {}, nombresProd = {};
+  cortes.forEach(function (c, i) {
+    var comp = {};
+    c.filas.forEach(function (r) {
+      for (var k = 0; k < 4; k++) {
+        var nom = String(r[22 + k * 2] || '').trim(), kg = Number(r[23 + k * 2]) || 0;
+        if (!nom) continue;
+        var clave = detectarCodigoInterno(nom) || normalizar(nom);
+        acumular(mats, clave, infoMaterial(clave).nombre || clave, i, kg);
+      }
+      // Colores por nombre: los codigos de los cortes viejos no siempre coinciden
+      var nomColor = String(r[K.color - 1] || '').replace(/\s*\((MB|CARGADO|CHEMITON|SIN C[ÓO]DIGO)[^)]*\)\s*$/i, '')
+        .replace(/\s+/g, ' ').trim().toUpperCase();
+      acumular(cols, normalizar(nomColor), nomColor, i, Number(r[K.kgCol - 1]) || 0);
+      // Productos: pieza principal (componente /0) por codigo de producto
+      var pc = String(r[K.prodComp - 1] || '').trim(), base = pc.split('-')[0] || String(r[K.prod - 1]);
+      if (!comp[base]) comp[base] = { principal: 0, piezas: {} };
+      var q = Number(r[K.cant - 1]) || 0;
+      if (/\/0$/.test(pc)) comp[base].principal += q;
+      var nomProd = String(r[K.prod - 1] || '').replace(/\s+/g, ' ').trim().toUpperCase();
+      if (!nombresProd[base]) nombresProd[base] = { principal: [], otros: [] };
+      (/\/0$/.test(pc) ? nombresProd[base].principal : nombresProd[base].otros).push(nomProd);
+      comp[base].piezas[pc] = (comp[base].piezas[pc] || 0) + q;
+    });
+    Object.keys(comp).forEach(function (b) {
+      var g = comp[b], mayor = 0;
+      Object.keys(g.piezas).forEach(function (p) { if (g.piezas[p] > mayor) mayor = g.piezas[p]; });
+      acumular(prods, b, b, i, g.principal > 0 ? g.principal : mayor);
+    });
+  });
+  // Nombre de cada producto: lo que tienen en comun todos sus nombres (sin el color)
+  Object.keys(prods).forEach(function (b) {
+    var ns = nombresProd[b].principal.length ? nombresProd[b].principal : nombresProd[b].otros, pre = ns[0] || b;
+    ns.forEach(function (x) { var k = 0; while (k < pre.length && pre.charAt(k) === x.charAt(k)) k++; pre = pre.slice(0, k); });
+    // Si quedo cortado a mitad de palabra, se completa la palabra
+    var primero = ns[0] || '';
+    while (pre.length < primero.length && /\S/.test(primero.charAt(pre.length)) && /\S$/.test(pre)) pre += primero.charAt(pre.length);
+    var limpio = pre.replace(/(?:[\s\/]+(?:C\/?|COLOR|DE|CON))?[\s\/]*$/, '').trim();
+    prods[b].nombre = (limpio.length < 4 ? (ns[0] || b) : limpio) + '  (' + b + ')';
+  });
+  var tabla = function (mapa, tope) {
+    return Object.keys(mapa).map(function (k) {
+      var t = mapa[k].kg.reduce(function (s, x) { return s + x; }, 0);
+      return [mapa[k].nombre].concat(mapa[k].kg).concat([t]);
+    }).sort(function (a, b) { return b[b.length - 1] - a[a.length - 1]; }).slice(0, tope || 1000);
+  };
+
+  var hRes = historico.getSheetByName(HOJA_TODOS_RESUMEN) || historico.insertSheet(HOJA_TODOS_RESUMEN, 0);
+  hRes.clear();
+  var bloques = [
+    { titulo: '📅 POR CORTE', enc: ['Corte', 'Desde', 'Hasta', 'Renglones', 'Días con producción', 'Kg materia prima', 'Kg colorante', 'Kg total'], filas: porCorte, color: '#0B1F33' },
+    { titulo: '🧪 MATERIA PRIMA CONSUMIDA (kg)', enc: ['Material'].concat(etiquetas).concat(['TOTAL']), filas: tabla(mats), color: '#1DB37A' },
+    { titulo: '🎨 COLORANTE CONSUMIDO (kg)', enc: ['Color'].concat(etiquetas).concat(['TOTAL']), filas: tabla(cols), color: '#F2436B' },
+    { titulo: '🏭 PRODUCTOS MÁS FABRICADOS (piezas, producto completo)', enc: ['Producto'].concat(etiquetas).concat(['TOTAL']), filas: tabla(prods, 40), color: '#00A6E0' }
+  ];
+  var ancho = Math.max(8, n + 2);
+  var filasNec = bloques.reduce(function (s, b) { return s + b.filas.length + 4; }, 4);
+  if (hRes.getMaxRows() < filasNec) hRes.insertRowsAfter(hRes.getMaxRows(), filasNec - hRes.getMaxRows());
+  if (hRes.getMaxColumns() < ancho) hRes.insertColumnsAfter(hRes.getMaxColumns(), ancho - hRes.getMaxColumns());
+  hRes.getRange(1, 1).setValue('📈 RESUMEN DE TODOS LOS CORTES  ·  ' + etiquetas.join('  ·  '))
+    .setFontWeight('bold').setFontSize(13);
+  hRes.getRange(2, 1).setValue('Generado el ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm') +
+    '. Se rehace con el menú Seguimiento ▸ 📚 Juntar todos los cortes.').setFontColor('#5C6B7A');
+  var r = 4;
+  bloques.forEach(function (b) {
+    hRes.getRange(r, 1).setValue(b.titulo).setFontWeight('bold').setFontSize(11).setFontColor(b.color);
+    r++;
+    hRes.getRange(r, 1, 1, b.enc.length).setValues([b.enc]).setFontWeight('bold').setFontColor('#FFFFFF')
+      .setBackground(b.color).setWrap(true).setHorizontalAlignment('center');
+    r++;
+    if (b.filas.length) {
+      hRes.getRange(r, 1, b.filas.length, b.enc.length).setValues(b.filas);
+      hRes.getRange(r, 2, b.filas.length, b.enc.length - 1).setNumberFormat('#,##0');
+      if (b.titulo.indexOf('POR CORTE') !== -1) {
+        hRes.getRange(r, 2, b.filas.length, 2).setNumberFormat('dd/MM/yyyy');
+        hRes.getRange(r + b.filas.length - 1, 1, 1, b.enc.length).setFontWeight('bold').setBackground('#EEF2F7');
+      }
+      hRes.getRange(r, b.enc.length, b.filas.length, 1).setFontWeight('bold');
+      r += b.filas.length;
+    }
+    r += 2;
+  });
+  hRes.setColumnWidth(1, 300);
+  for (var c = 2; c <= ancho; c++) hRes.setColumnWidth(c, 115);
+  hRes.setFrozenColumns(1);
+
+  // Link desde "Historico de Cortes" de este archivo
+  var hc = ss.getSheetByName('Histórico de Cortes');
+  if (hc) {
+    var url = 'https://docs.google.com/spreadsheets/d/' + historico.getId() + '/edit#gid=';
+    hc.getRange(1, 10).setFormula('=HYPERLINK("' + url + hRes.getSheetId() + '","📈 Ver resumen de todos los cortes")').setFontWeight('bold');
+    hc.getRange(2, 10).setFormula('=HYPERLINK("' + url + hTodo.getSheetId() + '","📚 Ver todas las órdenes juntas")').setFontWeight('bold');
+    hc.setColumnWidth(10, 260);
+  }
+
+  if (!silencioso) {
+    SpreadsheetApp.getUi().alert('📚 Histórico total listo',
+      'Junté ' + cortes.length + ' corte(s): ' + etiquetas.join(', ') + '.\n\n' +
+      '- ' + todas.length + ' renglones de órdenes en "' + HOJA_TODOS_SEGUIMIENTO + '"\n' +
+      '- Resumen por corte, material, color y producto en "' + HOJA_TODOS_RESUMEN + '"\n\n' +
+      'Están en el archivo "' + historico.getName() + '". En "Histórico de Cortes" (columna J) tienes los links directos.',
+      SpreadsheetApp.getUi().ButtonSet.OK);
+  }
+}
