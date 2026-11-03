@@ -478,8 +478,16 @@ function onOpen() {
 function corteDelMesYJuntar() {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Seguimiento');
   var habia = contarOrdenesSeguimiento(sh);
+  var maxAntes = null;
+  if (habia > 0) {
+    ordenesDeHojaSeguimiento(sh).filas.forEach(function (r) {
+      if (Object.prototype.toString.call(r[0]) === '[object Date]' && (!maxAntes || r[0] > maxAntes)) maxAntes = r[0];
+    });
+  }
   corteDelMes();
   if (habia > 0 && contarOrdenesSeguimiento(sh) === 0) {
+    if (maxAntes) PropertiesService.getScriptProperties().setProperty('ULTIMA_FECHA_CORTADA',
+      String(new Date(maxAntes.getFullYear(), maxAntes.getMonth(), maxAntes.getDate()).getTime()));
     try { generarHistoricoTotal(true); } catch (e) {}
   }
 }
@@ -689,5 +697,242 @@ function generarHistoricoTotal(silencioso) {
       '- Resumen por corte, material, color y producto en "' + HOJA_TODOS_RESUMEN + '"\n\n' +
       'Están en el archivo "' + historico.getName() + '". En "Histórico de Cortes" (columna J) tienes los links directos.',
       SpreadsheetApp.getUi().ButtonSet.OK);
+  }
+}
+
+
+// Traer ordenes de la carpeta: version corregida (no vuelve a traer los
+// dias que ya se cerraron en un corte y no falla si una orden viene repetida).
+function importarDesdeCarpetaCore() {
+  var CARPETA_ID = "1O0DMmXaRL6dfLTsXqbA4bdx7aIYm7Wwh";
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Seguimiento");
+  var lastRow = sh.getLastRow();
+  var existentes = {};
+  if (lastRow >= 5) {
+    var datosActuales = sh.getRange(5, 1, lastRow - 4, 15).getValues();
+    for (var idxExist = 0; idxExist < datosActuales.length; idxExist++) {
+      var rExist = datosActuales[idxExist];
+      var fecha = rExist[0], op = rExist[1], sku = rExist[3], color = rExist[9];
+      if (fecha && op) {
+        var keyExist = claveOrden(formatearFecha(fecha), op, sku, color);
+        existentes[keyExist] = {
+          row: 5 + idxExist,
+          firma: firmaOrden(rExist.slice(2))
+        };
+      }
+    }
+  }
+  var MESES = {
+    ENERO: 1,
+    FEBRERO: 2,
+    MARZO: 3,
+    ABRIL: 4,
+    MAYO: 5,
+    JUNIO: 6,
+    JULIO: 7,
+    AGOSTO: 8,
+    SEPTIEMBRE: 9,
+    OCTUBRE: 10,
+    NOVIEMBRE: 11,
+    DICIEMBRE: 12
+  };
+  var folder = DriveApp.getFolderById(CARPETA_ID);
+  var files = folder.getFiles();
+  var nuevasFilas = [];
+  var filasActualizar = [];
+  var archivosProcesados = 0;
+  var archivosOmitidos = [];
+  var detallePorArchivo = [];
+  var tiempoInicio = (new Date).getTime();
+  var LIMITE_MS = 4.5 * 60 * 1e3;
+  var seCortoPorTiempo = false;
+  var clavesOrigen = {}, fechasLeidas = {}, fechasConError = {};
+  // Los dias que ya se cerraron en un corte no se vuelven a traer
+  var ultimaCortada = ultimaFechaArchivada();
+  var archivosYaCortados = 0;
+  while (files.hasNext()) {
+    if ((new Date).getTime() - tiempoInicio > LIMITE_MS) {
+      seCortoPorTiempo = true;
+      break;
+    }
+    var file = files.next();
+    if (file.getMimeType() !== MimeType.GOOGLE_SHEETS) continue;
+    var titulo = file.getName();
+    var fecha = parsearFecha(titulo, MESES);
+    if (!fecha) {
+      archivosOmitidos.push(titulo + " (no se pudo leer la fecha del nombre del archivo)");
+      continue;
+    }
+    if (ultimaCortada && new Date(fecha.anio, fecha.mes - 1, fecha.dia) <= ultimaCortada) {
+      archivosYaCortados++;
+      continue;
+    }
+    var fechaTexto = (fecha.dia < 10 ? "0" + fecha.dia : fecha.dia) + "/" + (fecha.mes < 10 ? "0" + fecha.mes : fecha.mes) + "/" + fecha.anio;
+    var fechaISO = fecha.anio + "-" + (fecha.mes < 10 ? "0" + fecha.mes : fecha.mes) + "-" + (fecha.dia < 10 ? "0" + fecha.dia : fecha.dia);
+    var libroExterno;
+    try {
+      libroExterno = SpreadsheetApp.openById(file.getId());
+    } catch (e) {
+      archivosOmitidos.push(titulo + " (no se pudo abrir: " + e.message + ")");
+      fechasConError[fechaTexto] = true;
+      continue;
+    }
+    var maestro = libroExterno.getSheetByName("Maestro");
+    if (!maestro) {
+      archivosOmitidos.push(titulo + ' (no tiene pesta\xf1a "Maestro")');
+      fechasConError[fechaTexto] = true;
+      continue;
+    }
+    var datos;
+    try {
+      var filasALeer = Math.min(250, maestro.getMaxRows());
+      datos = maestro.getRange(1, 1, filasALeer, 15).getValues();
+    } catch (e) {
+      archivosOmitidos.push(titulo + " (error leyendo Maestro: " + e.message + ")");
+      fechasConError[fechaTexto] = true;
+      continue;
+    }
+    var opActual = null;
+    var filasEsteArchivo = 0;
+    var filasActualizadasEsteArchivo = 0;
+    var filasYaExistianEsteArchivo = 0;
+    for (var i = 1; i < datos.length; i++) {
+      var fila = datos[i];
+      var opCelda = fila[0];
+      if (opCelda !== "" && opCelda !== null) opActual = opCelda;
+      var cantidad = fila[8];
+      if (cantidad === "" || cantidad === null) continue;
+      var sku = fila[3], color = fila[9];
+      var key = claveOrden(fechaTexto, opActual, sku, color);
+      clavesOrigen[key] = true;
+      var camposComparables = [ fila[1], fila[3], fila[4], fila[5], fila[6], fila[7], fila[8], fila[9], fila[10], fila[11], fila[12], fila[13], fila[14] ];
+      var firmaNueva = firmaOrden(camposComparables);
+      var existente = existentes[key];
+      if (existente && existente.row === null) {
+        // Ya se agrego en esta misma lectura (la orden viene repetida en otro
+        // archivo): se queda con los datos mas recientes, sin fila nueva.
+        if (existente.firma !== firmaNueva) {
+          nuevasFilas[existente.idx] = [ fechaISO, opActual, fila[1], fila[3], fila[4], fila[5], fila[6], fila[7], fila[8], fila[9], fila[10], fila[11], fila[12], fila[13], fila[14], "", "" ];
+          existente.firma = firmaNueva;
+        }
+        filasYaExistianEsteArchivo++;
+        continue;
+      }
+      if (existente) {
+        if (existente.firma === firmaNueva) {
+          filasYaExistianEsteArchivo++;
+        } else {
+          filasActualizar.push({
+            row: existente.row,
+            valores: camposComparables
+          });
+          existentes[key] = {
+            row: existente.row,
+            firma: firmaNueva
+          };
+          filasActualizadasEsteArchivo++;
+        }
+        continue;
+      }
+      existentes[key] = {
+        row: null,
+        firma: firmaNueva,
+        idx: nuevasFilas.length
+      };
+      filasEsteArchivo++;
+      nuevasFilas.push([ fechaISO, opActual, fila[1], fila[3], fila[4], fila[5], fila[6], fila[7], fila[8], fila[9], fila[10], fila[11], fila[12], fila[13], fila[14], "", "" ]);
+    }
+    archivosProcesados++;
+    fechasLeidas[fechaTexto] = true;
+    var detalleTxt = titulo + " [" + fechaTexto + "]: " + filasEsteArchivo + " nuevas";
+    if (filasActualizadasEsteArchivo > 0) detalleTxt += ", " + filasActualizadasEsteArchivo + " actualizadas";
+    if (filasYaExistianEsteArchivo > 0) detalleTxt += ", " + filasYaExistianEsteArchivo + " sin cambios";
+    detallePorArchivo.push(detalleTxt);
+  }
+  if (filasActualizar.length > 0) {
+    filasActualizar.filter(function (u) { return typeof u.row === "number"; }).forEach((function(u) {
+      sh.getRange(u.row, 4, 1, 1).setNumberFormat("@");
+      sh.getRange(u.row, 3, 1, 13).setValues([ u.valores.map(valorParaHoja) ]);
+    }));
+    SpreadsheetApp.flush();
+  }
+  if (nuevasFilas.length > 0) {
+    var filaDestino = sh.getLastRow() + 1;
+    var faltan = filaDestino + nuevasFilas.length - 1 - sh.getMaxRows();
+    if (faltan > 0) sh.insertRowsAfter(sh.getMaxRows(), faltan + 200);
+    sh.getRange(filaDestino, 4, nuevasFilas.length, 1).setNumberFormat("@");
+    sh.getRange(filaDestino, 1, nuevasFilas.length, 17).setValues(nuevasFilas.map((function(f) {
+      return f.map((function(v, i) {
+        return i >= 2 ? valorParaHoja(v) : v;
+      }));
+    })));
+    sh.getRange(filaDestino, 1, nuevasFilas.length, 1).setNumberFormat("dd/mm/yyyy");
+    var plantilla = sh.getRange(5, 18, 1, 13);
+    plantilla.copyTo(sh.getRange(filaDestino, 18, nuevasFilas.length, 13));
+    SpreadsheetApp.flush();
+    var rangoNuevas = sh.getRange(filaDestino, 1, nuevasFilas.length, sh.getLastColumn());
+    sh.moveRows(rangoNuevas, 5);
+    SpreadsheetApp.flush();
+  }
+  actualizarResumenColores();
+  actualizarResumenMateriales();
+  actualizarInventarioCore();
+  actualizarDashboard();
+  var filasConError = detectarFilasConError();
+  SpreadsheetApp.flush();
+  actualizarPortada();
+  var mensaje = "Importaci\xf3n desde la carpeta de Drive \u2014 " + (new Date).toLocaleString() + "\n" + "- Archivos revisados: " + archivosProcesados + "\n" + "- \xd3rdenes nuevas agregadas: " + nuevasFilas.length + "\n" + "- \xd3rdenes actualizadas (ya exist\xedan, cambi\xf3 alg\xfan dato): " + filasActualizar.length + "\n\n" + "Detalle por archivo:\n" + detallePorArchivo.join("\n");
+  if (seCortoPorTiempo) {
+    mensaje += "\n\n\u23f1\ufe0f Se detuvo antes de terminar todos los archivos para no pasarse del " + "l\xedmite de tiempo de Google. No hay problema \u2014 dale clic otra vez y sigue justo donde " + "se qued\xf3, sin duplicar lo que ya trajo.";
+  }
+  if (archivosYaCortados > 0) {
+    mensaje += "\n\n📅 " + archivosYaCortados + " archivo(s) de d\xedas que ya se cerraron en un corte (hasta el " +
+      Utilities.formatDate(ultimaCortada, Session.getScriptTimeZone(), "dd/MM/yyyy") + ") no se volvieron a traer.";
+  }
+  if (archivosOmitidos.length > 0) {
+    mensaje += "\n\n\u26a0\ufe0f Archivos que no pude leer (rev\xedsalos a mano):\n" + archivosOmitidos.join("\n");
+  }
+  if (filasConError.length > 0) {
+    mensaje += "\n\n\u26a0\ufe0f Filas con dato faltante o mal escrito (revisa Cantidad y Peso): " + filasConError.join(", ");
+  }
+  return {
+    mensaje: mensaje,
+    nuevas: nuevasFilas.length,
+    actualizadas: filasActualizar.length,
+    clavesOrigen: clavesOrigen,
+    fechasLeidas: fechasLeidas,
+    fechasConError: fechasConError,
+    seCortoPorTiempo: seCortoPorTiempo
+  };
+}
+
+// Ultimo dia que ya quedo guardado en un corte. Se calcula del archivo
+// Historico (la fecha de orden mas reciente del ultimo corte) y se recuerda.
+function ultimaFechaArchivada() {
+  var props = PropertiesService.getScriptProperties();
+  var guardada = props.getProperty('ULTIMA_FECHA_CORTADA');
+  if (guardada) return new Date(Number(guardada));
+  try {
+    var historico = obtenerArchivoHistorico(), mejor = null, hoja = null;
+    historico.getSheets().forEach(function (h) {
+      var m = /^Cierre (\d{2})-(\d{2})-(\d{4})(?: \(\d+\))? — Seguimiento$/.exec(h.getName());
+      if (!m) return;
+      var f = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+      if (!mejor || f > mejor) { mejor = f; hoja = h; }
+    });
+    if (!hoja) return null;
+    var max = null;
+    ordenesDeHojaSeguimiento(hoja).filas.forEach(function (r) {
+      var f = corregirFechaOrden(r[0], mejor);
+      if (Object.prototype.toString.call(f) === '[object Date]' && (!max || f > max)) max = f;
+    });
+    if (max) {
+      max = new Date(max.getFullYear(), max.getMonth(), max.getDate());
+      props.setProperty('ULTIMA_FECHA_CORTADA', String(max.getTime()));
+    }
+    return max;
+  } catch (e) {
+    return null;
   }
 }
