@@ -176,7 +176,7 @@ var __D = (function () {
     if (lr < fila) return [];
     return sh.getRange(fila, 1, lr - fila + 1, cols).getValues().map(function (r) { return r.map(val); });
   };
-  var seg = tabla('Seguimiento', 5, 30).filter(function (r) { return typeof r[8] === 'number' && r[0] !== ''; });
+  var seg = tabla('Seguimiento', 5, 30).filter(function (r) { return typeof r[8] === 'number' && r[0] !== '' && String(r[15] || '').trim().toUpperCase() !== 'ANULADA'; });
   return {
     ahora: Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm'),
     hoy: Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd'),

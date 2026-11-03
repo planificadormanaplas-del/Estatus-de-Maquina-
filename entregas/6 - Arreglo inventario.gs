@@ -464,6 +464,9 @@ function onOpen() {
     .addItem('📦 Cruzar inventario (Inv)', 'actualizarInventario')
     .addItem('🧹 Eliminar filas duplicadas', 'eliminarFilasDuplicadas')
     .addSeparator()
+    .addItem('🚫 Anular orden(es) seleccionada(s)', 'anularOrdenesSeleccionadas')
+    .addItem('↩️ Quitar anulación', 'quitarAnulacion')
+    .addSeparator()
     .addItem('📅 Corte del mes (cerrar y archivar)', 'corteDelMesYJuntar')
     .addItem('📚 Juntar todos los cortes (histórico total)', 'generarHistoricoTotal')
     .addSeparator()
@@ -507,7 +510,9 @@ function ordenesDeHojaSeguimiento(hoja) {
     if (/^FECHA EMISI/.test(normalizar(datos[f][0]))) fEnc = f;
   }
   if (fEnc === -1) return { encabezado: null, filas: [] };
-  var filas = datos.slice(fEnc + 1).filter(function (r) { return typeof r[8] === 'number' && r[0] !== ''; })
+  var filas = datos.slice(fEnc + 1).filter(function (r) {
+    return typeof r[8] === 'number' && r[0] !== '' && String(r[15] || '').trim().toUpperCase() !== 'ANULADA';
+  })
     .map(function (r) { while (r.length < 30) r.push(''); return r; });
   return { encabezado: datos[fEnc], filas: filas };
 }
@@ -935,4 +940,133 @@ function ultimaFechaArchivada() {
   } catch (e) {
     return null;
   }
+}
+
+
+// ============================================================
+// ORDENES ANULADAS: en vez de borrar una orden se marca "ANULADA" en la
+// columna P (Estado). La fila se queda en la hoja con una franja roja y no se
+// cuenta en nada (sus kg quedan vacios y los conteos la saltan).
+// ============================================================
+function filasSeleccionadasSeguimiento() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getActiveSheet();
+  if (sh.getName() !== 'Seguimiento') return null;
+  var filas = {};
+  var lista = sh.getActiveRangeList();
+  (lista ? lista.getRanges() : [sh.getActiveRange()]).forEach(function (r) {
+    for (var f = r.getRow(); f < r.getRow() + r.getNumRows(); f++) if (f >= 5 && f <= sh.getLastRow()) filas[f] = true;
+  });
+  return { hoja: sh, filas: Object.keys(filas).map(Number).sort(function (a, b) { return a - b; }) };
+}
+
+function marcarAnulacion(anular) {
+  var ui = SpreadsheetApp.getUi();
+  var sel = filasSeleccionadasSeguimiento();
+  if (!sel) {
+    ui.alert('Primero ve a la pestaña "Seguimiento" y selecciona la fila (o las filas) de la orden.');
+    return;
+  }
+  var sh = sel.hoja, cambiadas = [];
+  sel.filas.forEach(function (f) {
+    var fila = sh.getRange(f, 1, 1, 16).getValues()[0];
+    if (fila[8] === '' || fila[8] === null) return;
+    var estado = String(fila[15] || '').trim().toUpperCase();
+    if (anular && estado !== 'ANULADA') { sh.getRange(f, 16).setValue('ANULADA'); cambiadas.push(f); }
+    if (!anular && estado === 'ANULADA') { sh.getRange(f, 16).setValue(''); cambiadas.push(f); }
+  });
+  if (!cambiadas.length) {
+    ui.alert(anular ? 'Las filas seleccionadas no tienen órdenes o ya estaban anuladas.' : 'Ninguna de las filas seleccionadas estaba anulada.');
+    return;
+  }
+  SpreadsheetApp.flush();
+  actualizarResumenColores();
+  actualizarResumenMateriales();
+  actualizarInventarioCore();
+  SpreadsheetApp.flush();
+  ui.alert((anular ? '🚫 Anulada(s) ' : '↩️ Se quitó la anulación de ') + cambiadas.length + ' orden(es): fila(s) ' + cambiadas.join(', ') + '.\n\n' +
+    (anular ? 'Quedan en la hoja con franja roja y ya no se cuentan en consumo, inventario ni Dashboard.'
+            : 'Vuelven a contarse normal en consumo, inventario y Dashboard.'));
+}
+
+function anularOrdenesSeleccionadas() { marcarAnulacion(true); }
+function quitarAnulacion() { marcarAnulacion(false); }
+
+// Plantilla de la fila 5 (columnas R a AD), igual a la que esta en la hoja, con
+// los kg en blanco cuando la orden esta ANULADA. Reemplaza la de la parte 3.
+function escribirPlantillaFila5(sh) {
+  var formulas = ["=IF(TRIM(J5)=\"\",\"\",LET(txt,UPPER(TRIM(J5)),grupo,IFERROR(VLOOKUP(TRIM(J5),Colores!$A$2:$H,8,0),\"\"),cod,IFERROR(REGEXEXTRACT(txt,\"\\((?:MB|CARGADO|CHEMITON)\\s*(\\d{4})\\)\"),\"\"),grupoCod,IF(OR(grupo<>\"\",cod=\"\"),grupo,IFERROR(INDEX(FILTER(Colores!$H$2:$H,RIGHT(Colores!$C$2:$C,4)=cod,Colores!$H$2:$H<>\"\"),1),\"\")),primero,IF(grupoCod=\"\",\"\",TRIM(INDEX(SPLIT(grupoCod,\",\"),1,1))),base,TRIM(REGEXREPLACE(txt,\"\\s*\\([^()]*(?:MB|CARGADO|CHEMITON|SIN C[ÓO]DIGO)[^()]*\\)\\s*$\",\"\")),alias,SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(base,\"STANSHOME\",\"STANHOME\"),\"NATURAL 70%\",\"NATURAL (70%)\"),\"VERDE PASTEL\",\"VERDE MENTA (PASTEL)\"),nom,IF(primero<>\"\",primero,alias),esMueble,OR(ISNUMBER(SEARCH(\"11H01A+05C06+REF+MOLIDO\",SUBSTITUTE(G5,\" \",\"\"))),REGEXMATCH(UPPER(F5),\"SILLA|ESCALEBANCO|BUTACA|\\bMESA\")),nomFinal,IF(nom=\"ARENA\",IF(esMueble,\"ARENA (CON UV)\",\"ARENA (SIN UV)\"),IF(AND(esMueble,ISNUMBER(MATCH(nom&\" (SILLAS)\",'Catálogo Colores'!$B$2:$B$500,0))),nom&\" (SILLAS)\",nom)),IFERROR(INDEX('Catálogo Colores'!$E$2:$E$500,MATCH(nomFinal,'Catálogo Colores'!$B$2:$B$500,0)),\"(sin mapear)\")))", "=IF(OR(ISNUMBER(SEARCH(\"molido\",G5)),ISNUMBER(SEARCH(\"molino\",G5))),0.015,0.02)", "=IFERROR(IF(OR(I5=\"\",UPPER(TRIM(P5))=\"ANULADA\"),\"\",I5*N5/1000*S5),\"(revisar dato)\")", "=IFERROR(IF(OR(I5=\"\",UPPER(TRIM(P5))=\"ANULADA\"),\"\",I5*N5/1000),\"(revisar dato)\")", "=IFERROR(IF(U5=\"\",\"\",U5-T5),\"(revisar dato)\")", "=IF(G5=\"\",\"\",IF(ISNUMBER(SEARCH(\"+\",G5)),IFERROR(INDEX('Recetas de Material'!$B$3:$B$198,MATCH(REGEXREPLACE(UPPER(G5),\"\\([^)]*\\)|\\s\",\"\"),ARRAYFORMULA(REGEXREPLACE(UPPER('Recetas de Material'!$A$3:$A$198),\"\\([^)]*\\)|\\s\",\"\")),0)),\"(definir receta)\"),G5))", "=IF(G5=\"\",\"\",IF(V5=\"\",\"\",IFERROR(LET(f,MATCH(REGEXREPLACE(UPPER(G5),\"\\([^)]*\\)|\\s\",\"\"),ARRAYFORMULA(REGEXREPLACE(UPPER('Recetas de Material'!$A$3:$A$198),\"\\([^)]*\\)|\\s\",\"\")),0),t,SUM(INDEX('Recetas de Material'!$C$3:$C$198,f),INDEX('Recetas de Material'!$E$3:$E$198,f),INDEX('Recetas de Material'!$G$3:$G$198,f),INDEX('Recetas de Material'!$I$3:$I$198,f)),IF(NOT(ISNUMBER(SEARCH(\"+\",G5))),V5,IF(t=0,0,V5*N(INDEX('Recetas de Material'!$C$3:$C$198,f))/t))),V5)))", "=IF(G5=\"\",\"\",IF(AND(ISNUMBER(SEARCH(\"+\",G5)),ISNUMBER(MATCH(REGEXREPLACE(UPPER(G5),\"\\([^)]*\\)|\\s\",\"\"),ARRAYFORMULA(REGEXREPLACE(UPPER('Recetas de Material'!$A$3:$A$198),\"\\([^)]*\\)|\\s\",\"\")),0))),IFERROR(INDEX('Recetas de Material'!$D$3:$D$198,MATCH(REGEXREPLACE(UPPER(G5),\"\\([^)]*\\)|\\s\",\"\"),ARRAYFORMULA(REGEXREPLACE(UPPER('Recetas de Material'!$A$3:$A$198),\"\\([^)]*\\)|\\s\",\"\")),0)),\"\"),\"\"))", "=IF(G5=\"\",\"\",IF(V5=\"\",\"\",IF(ISNUMBER(SEARCH(\"+\",G5)),IFERROR(LET(f,MATCH(REGEXREPLACE(UPPER(G5),\"\\([^)]*\\)|\\s\",\"\"),ARRAYFORMULA(REGEXREPLACE(UPPER('Recetas de Material'!$A$3:$A$198),\"\\([^)]*\\)|\\s\",\"\")),0),t,SUM(INDEX('Recetas de Material'!$C$3:$C$198,f),INDEX('Recetas de Material'!$E$3:$E$198,f),INDEX('Recetas de Material'!$G$3:$G$198,f),INDEX('Recetas de Material'!$I$3:$I$198,f)),IF(t=0,0,V5*N(INDEX('Recetas de Material'!$E$3:$E$198,f))/t)),0),0)))", "=IF(G5=\"\",\"\",IF(AND(ISNUMBER(SEARCH(\"+\",G5)),ISNUMBER(MATCH(REGEXREPLACE(UPPER(G5),\"\\([^)]*\\)|\\s\",\"\"),ARRAYFORMULA(REGEXREPLACE(UPPER('Recetas de Material'!$A$3:$A$198),\"\\([^)]*\\)|\\s\",\"\")),0))),IFERROR(INDEX('Recetas de Material'!$F$3:$F$198,MATCH(REGEXREPLACE(UPPER(G5),\"\\([^)]*\\)|\\s\",\"\"),ARRAYFORMULA(REGEXREPLACE(UPPER('Recetas de Material'!$A$3:$A$198),\"\\([^)]*\\)|\\s\",\"\")),0)),\"\"),\"\"))", "=IF(G5=\"\",\"\",IF(V5=\"\",\"\",IF(ISNUMBER(SEARCH(\"+\",G5)),IFERROR(LET(f,MATCH(REGEXREPLACE(UPPER(G5),\"\\([^)]*\\)|\\s\",\"\"),ARRAYFORMULA(REGEXREPLACE(UPPER('Recetas de Material'!$A$3:$A$198),\"\\([^)]*\\)|\\s\",\"\")),0),t,SUM(INDEX('Recetas de Material'!$C$3:$C$198,f),INDEX('Recetas de Material'!$E$3:$E$198,f),INDEX('Recetas de Material'!$G$3:$G$198,f),INDEX('Recetas de Material'!$I$3:$I$198,f)),IF(t=0,0,V5*N(INDEX('Recetas de Material'!$G$3:$G$198,f))/t)),0),0)))", "=IF(G5=\"\",\"\",IF(AND(ISNUMBER(SEARCH(\"+\",G5)),ISNUMBER(MATCH(REGEXREPLACE(UPPER(G5),\"\\([^)]*\\)|\\s\",\"\"),ARRAYFORMULA(REGEXREPLACE(UPPER('Recetas de Material'!$A$3:$A$198),\"\\([^)]*\\)|\\s\",\"\")),0))),IFERROR(INDEX('Recetas de Material'!$H$3:$H$198,MATCH(REGEXREPLACE(UPPER(G5),\"\\([^)]*\\)|\\s\",\"\"),ARRAYFORMULA(REGEXREPLACE(UPPER('Recetas de Material'!$A$3:$A$198),\"\\([^)]*\\)|\\s\",\"\")),0)),\"\"),\"\"))", "=IF(G5=\"\",\"\",IF(V5=\"\",\"\",IF(ISNUMBER(SEARCH(\"+\",G5)),IFERROR(LET(f,MATCH(REGEXREPLACE(UPPER(G5),\"\\([^)]*\\)|\\s\",\"\"),ARRAYFORMULA(REGEXREPLACE(UPPER('Recetas de Material'!$A$3:$A$198),\"\\([^)]*\\)|\\s\",\"\")),0),t,SUM(INDEX('Recetas de Material'!$C$3:$C$198,f),INDEX('Recetas de Material'!$E$3:$E$198,f),INDEX('Recetas de Material'!$G$3:$G$198,f),INDEX('Recetas de Material'!$I$3:$I$198,f)),IF(t=0,0,V5*N(INDEX('Recetas de Material'!$I$3:$I$198,f))/t)),0),0)))"];
+  sh.getRange(5, 18, 1, formulas.length).setFormulas([formulas]);
+  SpreadsheetApp.flush();
+}
+
+// Igual que la de la parte 1, pero sin contar las ordenes anuladas
+// (la usa el corte del mes para los totales de "Historico de Cortes").
+function calcularDatosDashboard() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Seguimiento");
+  var lastRow = sh.getLastRow();
+  var porFecha = {};
+  var porProducto = {};
+  var porColor = {};
+  var totalOrdenes = 0, totalKgColor = 0, totalKgMp = 0;
+  var productosDistintos = {};
+  if (lastRow >= 5) {
+    var n = lastRow - 4;
+    var bloque = sh.getRange(5, 1, n, 22).getValues();
+    for (var i = 0; i < n; i++) {
+      var fila = bloque[i];
+      var cantidad = fila[8];
+      if (cantidad === "" || cantidad === null) continue;
+      if (String(fila[15] || "").trim().toUpperCase() === "ANULADA") continue;
+      var fecha = fila[0];
+      var producto = fila[5];
+      var color = fila[9];
+      var kgColor = fila[19];
+      var kgMp = fila[21];
+      kgColor = typeof kgColor === "number" ? kgColor : 0;
+      kgMp = typeof kgMp === "number" ? kgMp : 0;
+      totalOrdenes++;
+      totalKgColor += kgColor;
+      totalKgMp += kgMp;
+      if (producto) productosDistintos[producto] = true;
+      var fKey = Object.prototype.toString.call(fecha) === "[object Date]" ? Utilities.formatDate(fecha, Session.getScriptTimeZone(), "yyyy-MM-dd") : String(fecha || "").trim();
+      if (fKey) porFecha[fKey] = (porFecha[fKey] || 0) + kgColor + kgMp;
+      if (producto) {
+        if (!porProducto[producto]) porProducto[producto] = {
+          cantidad: 0,
+          kgMp: 0
+        };
+        porProducto[producto].cantidad += cantidad;
+        porProducto[producto].kgMp += kgMp;
+      }
+      if (color) porColor[color] = (porColor[color] || 0) + kgColor;
+    }
+  }
+  var diasDistintos = Object.keys(porFecha).length;
+  var productosCount = Object.keys(productosDistintos).length;
+  var fechasOrdenadas = Object.keys(porFecha).sort();
+  var topProductos = Object.keys(porProducto).map((function(p) {
+    return [ p, porProducto[p].cantidad ];
+  })).sort((function(a, b) {
+    return b[1] - a[1];
+  })).slice(0, 8);
+  var topColores = Object.keys(porColor).map((function(c) {
+    return [ c, Math.round(porColor[c] * 100) / 100 ];
+  })).sort((function(a, b) {
+    return b[1] - a[1];
+  })).slice(0, 8);
+  return {
+    totalOrdenes: totalOrdenes,
+    diasDistintos: diasDistintos,
+    productosCount: productosCount,
+    totalKgMp: totalKgMp,
+    totalKgColor: totalKgColor,
+    fechas: fechasOrdenadas,
+    kgPorFecha: fechasOrdenadas.map((function(f) {
+      return Math.round(porFecha[f] * 100) / 100;
+    })),
+    topProductos: topProductos,
+    topColores: topColores
+  };
 }
