@@ -715,15 +715,22 @@ function importarDesdeCarpetaCore() {
   var lastRow = sh.getLastRow();
   var existentes = {};
   if (lastRow >= 5) {
-    var datosActuales = sh.getRange(5, 1, lastRow - 4, 15).getValues();
+    var datosActuales = sh.getRange(5, 1, lastRow - 4, 16).getValues();
+    var notasSacos = sh.getRange(5, 11, lastRow - 4, 1).getNotes();
     for (var idxExist = 0; idxExist < datosActuales.length; idxExist++) {
       var rExist = datosActuales[idxExist];
+      var anulada = String(rExist[15] || "").trim().toUpperCase() === "ANULADA";
+      // En una anulada, los sacos reales estan en la nota (para comparar bien)
+      var guardados = anulada ? leerNotaSacos(notasSacos[idxExist][0]) : null;
+      if (guardados) { rExist[10] = guardados[0]; rExist[11] = guardados[1]; }
+      rExist = rExist.slice(0, 15);
       var fecha = rExist[0], op = rExist[1], sku = rExist[3], color = rExist[9];
       if (fecha && op) {
         var keyExist = claveOrden(formatearFecha(fecha), op, sku, color);
         existentes[keyExist] = {
           row: 5 + idxExist,
-          firma: firmaOrden(rExist.slice(2))
+          firma: firmaOrden(rExist.slice(2)),
+          anulada: anulada
         };
       }
     }
@@ -830,11 +837,13 @@ function importarDesdeCarpetaCore() {
         } else {
           filasActualizar.push({
             row: existente.row,
-            valores: camposComparables
+            valores: camposComparables,
+            anulada: existente.anulada
           });
           existentes[key] = {
             row: existente.row,
-            firma: firmaNueva
+            firma: firmaNueva,
+            anulada: existente.anulada
           };
           filasActualizadasEsteArchivo++;
         }
@@ -858,7 +867,13 @@ function importarDesdeCarpetaCore() {
   if (filasActualizar.length > 0) {
     filasActualizar.filter(function (u) { return typeof u.row === "number"; }).forEach((function(u) {
       sh.getRange(u.row, 4, 1, 1).setNumberFormat("@");
-      sh.getRange(u.row, 3, 1, 13).setValues([ u.valores.map(valorParaHoja) ]);
+      var vals = u.valores.map(valorParaHoja);
+      if (u.anulada) {
+        // Orden anulada: los sacos nuevos se guardan en la nota, no en la celda
+        sh.getRange(u.row, 11).setNote(notaSacos(vals[8], vals[9]));
+        vals[8] = ""; vals[9] = "";
+      }
+      sh.getRange(u.row, 3, 1, 13).setValues([ vals ]);
     }));
     SpreadsheetApp.flush();
   }
@@ -972,8 +987,8 @@ function marcarAnulacion(anular) {
     var fila = sh.getRange(f, 1, 1, 16).getValues()[0];
     if (fila[8] === '' || fila[8] === null) return;
     var estado = String(fila[15] || '').trim().toUpperCase();
-    if (anular && estado !== 'ANULADA') { sh.getRange(f, 16).setValue('ANULADA'); cambiadas.push(f); }
-    if (!anular && estado === 'ANULADA') { sh.getRange(f, 16).setValue(''); cambiadas.push(f); }
+    if (anular && estado !== 'ANULADA') { sh.getRange(f, 16).setValue('ANULADA'); guardarYVaciarSacos(sh, f); cambiadas.push(f); }
+    if (!anular && estado === 'ANULADA') { sh.getRange(f, 16).setValue(''); devolverSacos(sh, f); cambiadas.push(f); }
   });
   if (!cambiadas.length) {
     ui.alert(anular ? 'Las filas seleccionadas no tienen órdenes o ya estaban anuladas.' : 'Ninguna de las filas seleccionadas estaba anulada.');
@@ -985,8 +1000,9 @@ function marcarAnulacion(anular) {
   actualizarInventarioCore();
   SpreadsheetApp.flush();
   ui.alert((anular ? '🚫 Anulada(s) ' : '↩️ Se quitó la anulación de ') + cambiadas.length + ' orden(es): fila(s) ' + cambiadas.join(', ') + '.\n\n' +
-    (anular ? 'Quedan en la hoja con franja roja y ya no se cuentan en consumo, inventario ni Dashboard.'
-            : 'Vuelven a contarse normal en consumo, inventario y Dashboard.'));
+    (anular ? 'Quedan en la hoja con franja roja y ya no se cuentan en consumo, inventario ni Dashboard. ' +
+              'Los SACOS y SACOS (kg) quedaron vacíos (lo que tenían está guardado en la nota de la celda de SACOS).'
+            : 'Vuelven a contarse normal en consumo, inventario y Dashboard, y recuperaron sus SACOS y SACOS (kg).'));
 }
 
 function anularOrdenesSeleccionadas() { marcarAnulacion(true); }
@@ -1069,4 +1085,51 @@ function calcularDatosDashboard() {
     topProductos: topProductos,
     topColores: topColores
   };
+}
+
+
+// SACOS (K) y SACOS kg (L) de una orden anulada se vacian para que no se
+// sumen; lo que tenian queda guardado en la nota de la celda de SACOS.
+var MARCA_NOTA_SACOS = 'ANULADA · antes:';
+
+function guardarYVaciarSacos(sh, fila) {
+  var celda = sh.getRange(fila, 11, 1, 2), v = celda.getValues()[0];
+  if (v[0] === '' && v[1] === '' && String(sh.getRange(fila, 11).getNote()).indexOf(MARCA_NOTA_SACOS) === 0) return;
+  sh.getRange(fila, 11).setNote(notaSacos(v[0], v[1]));
+  celda.setValues([['', '']]);
+}
+
+function notaSacos(sacos, kg) {
+  return MARCA_NOTA_SACOS + ' SACOS=' + sacos + ' · SACOS(kg)=' + kg + '\n(Se devuelven solos al quitar la anulación)';
+}
+
+function leerNotaSacos(nota) {
+  nota = String(nota || '');
+  if (nota.indexOf(MARCA_NOTA_SACOS) !== 0) return null;
+  var a = /SACOS=([^·\n]*)/.exec(nota), b = /SACOS\(kg\)=([^·\n]*)/.exec(nota);
+  var num = function (x) { x = String(x || '').trim(); return x === '' || isNaN(Number(x)) ? x : Number(x); };
+  return [a ? num(a[1]) : '', b ? num(b[1]) : ''];
+}
+
+function devolverSacos(sh, fila) {
+  var guardado = leerNotaSacos(sh.getRange(fila, 11).getNote());
+  if (!guardado) return;
+  sh.getRange(fila, 11, 1, 2).setValues([guardado]);
+  sh.getRange(fila, 11).clearNote();
+}
+
+// Si se escribe o se borra "ANULADA" a mano en la columna Estado (P)
+function onEdit(e) {
+  try {
+    var r = e && e.range;
+    if (!r || r.getSheet().getName() !== 'Seguimiento') return;
+    var c1 = r.getColumn(), c2 = c1 + r.getNumColumns() - 1;
+    if (c1 > 16 || c2 < 16) return;
+    var sh = r.getSheet();
+    for (var f = Math.max(5, r.getRow()); f < r.getRow() + r.getNumRows(); f++) {
+      var estado = String(sh.getRange(f, 16).getValue() || '').trim().toUpperCase();
+      if (estado === 'ANULADA') guardarYVaciarSacos(sh, f);
+      else devolverSacos(sh, f);
+    }
+  } catch (err) {}
 }
