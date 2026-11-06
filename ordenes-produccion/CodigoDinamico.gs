@@ -728,11 +728,13 @@ function llenarFilasDeOrden(sheet, fila, n, op, maquina, sku, componente, import
 
 // Hace todas las preguntas de una orden y la escribe. Devuelve {op, fila,
 // texto}, o null si cancelaron.
-function asistenteUnaOrden(ui, ss, sheet, excluir, tituloColores) {
-  var op = pedirNumeroOP(ui, sheet, excluir);
-  if (op === null) return null;
+// maquinaFija (opcional): si ya se eligió la máquina (en "Generar varias"),
+// no se vuelve a preguntar. El número de OP se pone solo: el siguiente al
+// más alto que ya existe (si ya hay 1, 2 y 3, la nueva es la 4).
+function asistenteUnaOrden(ui, ss, sheet, excluir, tituloColores, maquinaFija) {
+  var op = siguienteOPAutomatica(sheet, excluir);
 
-  var maquina = pedirMaquina(ui);
+  var maquina = maquinaFija || pedirMaquina(ui);
   if (maquina === null) return null;
 
   var sku = pedirSku(ui);
@@ -772,16 +774,18 @@ function generarVariasOrdenes() {
   var sheet = ss.getSheetByName(HOJA_MAESTRO);
   if (!sheet) { ui.alert('No encontré la hoja "' + HOJA_MAESTRO + '".'); return; }
 
-  var respCantidad = ui.prompt('Generar varias órdenes', '¿Cuántas órdenes nuevas vas a crear?', ui.ButtonSet.OK_CANCEL);
-  if (respCantidad.getSelectedButton() !== ui.Button.OK) return;
-  var totalOrdenes = parseInt(respCantidad.getResponseText(), 10);
-  if (isNaN(totalOrdenes) || totalOrdenes < 1) { ui.alert('Escribe un número válido.'); return; }
+  // Se escriben todas las máquinas de una vez: una orden por cada máquina.
+  var maquinas = pedirVariasMaquinas(ui);
+  if (maquinas === null) return;
 
   var resumen = [];
   var usadas = {};
-  for (var k = 0; k < totalOrdenes; k++) {
-    ui.alert('Orden ' + (k + 1) + ' de ' + totalOrdenes);
-    var r = asistenteUnaOrden(ui, ss, sheet, usadas, 'Orden ' + (k + 1) + ' de ' + totalOrdenes);
+  for (var k = 0; k < maquinas.length; k++) {
+    var op = siguienteOPAutomatica(sheet, usadas);
+    ui.alert('Orden ' + (k + 1) + ' de ' + maquinas.length,
+             'OP ' + op + ' — máquina ' + maquinas[k] + '.\n\nAhora te pido el SKU, el componente y los colores de esta orden.',
+             ui.ButtonSet.OK);
+    var r = asistenteUnaOrden(ui, ss, sheet, usadas, 'Orden ' + (k + 1) + ' de ' + maquinas.length, maquinas[k]);
     if (!r) break;
     resumen.push(r.texto);
   }
@@ -1659,4 +1663,59 @@ function mostrarHojasConOrden() {
   var ops = leerOrdenes(maestro).map(function (o) { return o.op; })
     .filter(function (op) { return op >= 1 && op <= HOJAS_DE_ORDEN; });
   ss.toast(ops.length ? 'Hojas visibles: ' + ops.join(', ') : 'No hay órdenes del 1 al ' + HOJAS_DE_ORDEN + '.', '👁️ Listo', 5);
+}
+
+
+// ---------- Número de OP automático y varias máquinas ----------
+
+// El siguiente número después del más alto del Maestro (o de los ya usados en
+// esta tanda). Si el Maestro está vacío, empieza en 1.
+function siguienteOPAutomatica(sheet, excluir) {
+  var mayor = 0;
+  leerOrdenes(sheet).forEach(function (o) {
+    var n = Number(o.op);
+    if (!isNaN(n) && n > mayor) mayor = n;
+  });
+  Object.keys(excluir || {}).forEach(function (k) {
+    var n = Number(k);
+    if (!isNaN(n) && n > mayor) mayor = n;
+  });
+  return mayor + 1;
+}
+
+// Pide todas las máquinas de una vez (ej. "132, 133, 143") y devuelve la
+// lista, en el mismo orden. Avisa de las que no existen o no están operativas.
+function pedirVariasMaquinas(ui) {
+  var maquinas = listaMaquinasValidas();
+  var validas = maquinas.map(function (m) { return m.numero; });
+  var listaTexto = validas.length > 0 ? ('Máquinas disponibles:\n' + validas.join(', ') + '\n\n') : '';
+  var mensaje = listaTexto + 'Escribe TODAS las máquinas de las órdenes, separadas por coma o espacio ' +
+                '(ej: 132, 133, 143). Se crea una orden por cada máquina, en ese orden.';
+  while (true) {
+    var resp = ui.prompt('Generar varias órdenes', mensaje, ui.ButtonSet.OK_CANCEL);
+    if (resp.getSelectedButton() !== ui.Button.OK) return null;
+    var elegidas = resp.getResponseText().split(/[\s,;]+/).filter(function (x) { return x !== ''; });
+    if (elegidas.length === 0) continue;
+
+    if (validas.length > 0) {
+      var malas = elegidas.filter(function (m) { return validas.indexOf(m) === -1; });
+      if (malas.length > 0) {
+        mensaje = 'Estas máquinas no existen: ' + malas.join(', ') + '. Revisa y escríbelas otra vez.\n\n' + listaTexto +
+                  'Máquinas separadas por coma o espacio (ej: 132, 133, 143):';
+        continue;
+      }
+      var paradas = elegidas.filter(function (m) {
+        var est = maquinas[validas.indexOf(m)].estatus;
+        return est && est !== ESTATUS_OPERATIVA;
+      });
+      if (paradas.length > 0) {
+        var detalle = paradas.map(function (m) { return m + ' (' + maquinas[validas.indexOf(m)].estatus + ')'; }).join(', ');
+        var seguir = ui.alert('⚠️ Máquinas no operativas',
+          'Según "Maq y Tons", estas máquinas no están operativas: ' + detalle + '.\n\n¿Usarlas de todos modos?',
+          ui.ButtonSet.YES_NO);
+        if (seguir !== ui.Button.YES) continue;
+      }
+    }
+    return elegidas;
+  }
 }
