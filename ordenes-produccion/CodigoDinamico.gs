@@ -1,5 +1,5 @@
 /**
- * GENERADOR DE ÓRDENES DE PRODUCCIÓN — v24 (Maestro dinámico + Excel)
+ * GENERADOR DE ÓRDENES DE PRODUCCIÓN — v25 (Maestro dinámico + Excel, más rápido)
  * ------------------------------------------------------------
  * Novedades v24:
  *   - Botones "Mover OP a otra posición" e "Intercambiar dos OP" (junto a
@@ -190,12 +190,16 @@ function asegurarReserva(sheet, filasNecesarias) {
 
 // Borra filas del Maestro sin dejarlo nunca sin filas debajo del encabezado.
 function eliminarFilas(sheet, fila, n) {
+  var agregoFilas = false;
   if (sheet.getMaxRows() - (fila + n - 1) < 1) {
     sheet.insertRowsAfter(sheet.getMaxRows(), FILAS_DE_RESERVA);
+    agregoFilas = true;
   }
   sheet.deleteRows(fila, n);
   asegurarReserva(sheet, 0);
-  limpiarFormatoReserva(sheet);
+  // Las filas de reserva ya estaban limpias; solo se limpian si se agregaron
+  // filas nuevas al final (heredan el formato de la última orden).
+  if (agregoFilas) limpiarFormatoReserva(sheet);
   asegurarEstructuraMaestro(sheet);
   actualizarHojasVisibles(sheet);
 }
@@ -266,27 +270,43 @@ function aplicarFormatoFilas(sheet, fila, n) {
 // columna A. Si alguien las borró, aquí se recuperan.
 var FORMULA_COLOR_FILA = '=$A2<>""';
 function asegurarColoresMaestro(sheet) {
-  var filas = sheet.getMaxRows() - 1;
+  var ultimaFila = sheet.getMaxRows();
+  var filas = ultimaFila - 1;
   if (filas < 1) return;
-  var porColor = {};
+  if (COLORES_REVISADOS_PARA === ultimaFila) return;   // ya revisadas en esta ejecución
+
+  var columnasPorColor = {};
   FORMATO_COLUMNAS.forEach(function (f, i) {
     if (!f.fondo) return;
-    (porColor[f.fondo] = porColor[f.fondo] || []).push(sheet.getRange(FILA_INICIO, i + 1, filas, 1));
+    (columnasPorColor[f.fondo] = columnasPorColor[f.fondo] || []).push(i + 1);
   });
-  var otras = sheet.getConditionalFormatRules().filter(function (r) {
+  var colores = Object.keys(columnasPorColor);
+
+  var propias = [], otras = [];
+  sheet.getConditionalFormatRules().forEach(function (r) {
     var c = r.getBooleanCondition();
-    return !(c && c.getCriteriaType() === SpreadsheetApp.BooleanCriteria.CUSTOM_FORMULA &&
-             c.getCriteriaValues()[0] === FORMULA_COLOR_FILA);
+    var esPropia = c && c.getCriteriaType() === SpreadsheetApp.BooleanCriteria.CUSTOM_FORMULA &&
+                   c.getCriteriaValues()[0] === FORMULA_COLOR_FILA;
+    (esPropia ? propias : otras).push(r);
   });
-  var nuevas = Object.keys(porColor).map(function (color) {
-    return SpreadsheetApp.newConditionalFormatRule()
-      .whenFormulaSatisfied(FORMULA_COLOR_FILA)
-      .setBackground(color)
-      .setRanges(porColor[color])
-      .build();
+
+  // Si las reglas ya existen y cubren desde la fila 2 hasta la última, no se tocan.
+  var completas = propias.length === colores.length && propias.every(function (r) {
+    return r.getRanges().every(function (g) { return g.getRow() <= FILA_INICIO && g.getLastRow() >= ultimaFila; });
   });
-  sheet.setConditionalFormatRules(nuevas.concat(otras));
+  if (!completas) {
+    var nuevas = colores.map(function (color) {
+      return SpreadsheetApp.newConditionalFormatRule()
+        .whenFormulaSatisfied(FORMULA_COLOR_FILA)
+        .setBackground(color)
+        .setRanges(columnasPorColor[color].map(function (col) { return sheet.getRange(FILA_INICIO, col, filas, 1); }))
+        .build();
+    });
+    sheet.setConditionalFormatRules(nuevas.concat(otras));
+  }
+  COLORES_REVISADOS_PARA = ultimaFila;
 }
+var COLORES_REVISADOS_PARA = null;
 
 // Listas desplegables de cada fila de orden (las mismas del Maestro original).
 // El Componente (E) tiene su propia lista según el SKU.
@@ -392,11 +412,7 @@ function pedirNumeroOP(ui, sheet, excluir) {
 
 // Devuelve [{numero, estatus}] desde A4 hasta el final de "Maq y Tons".
 function listaMaquinasValidas() {
-  var hoja = encontrarHoja(HOJA_MAQ_TONS, ['maq', 'ton']);
-  if (!hoja) return [];
-  var ultimaFila = hoja.getLastRow();
-  if (ultimaFila < 4) return [];
-  var datos = hoja.getRange(4, 1, ultimaFila - 3, COL_MAQ_ESTATUS).getValues();
+  var datos = datosDeCatalogo('maquinas');
   var lista = [];
   for (var i = 0; i < datos.length; i++) {
     if (datos[i][0] === '') continue;
@@ -467,11 +483,7 @@ function pedirMaquina(ui) {
 // ---------- Paso 2: Producto / SKU (con búsqueda) ----------
 
 function buscarSkus(texto) {
-  var hoja = encontrarHoja(HOJA_LISTA_PRODUCTOS, ['lista', 'producto']);
-  if (!hoja) return [];
-  var ultimaFila = hoja.getLastRow();
-  if (ultimaFila < 2) return [];
-  var datos = hoja.getRange(2, COL_LISTA_PRODUCTOS_SKU, ultimaFila - 1, 2).getValues();
+  var datos = datosDeCatalogo('productos');
   var textoUp = texto.toUpperCase();
   var resultados = [];
   for (var i = 0; i < datos.length; i++) {
@@ -538,11 +550,7 @@ function pedirSku(ui) {
 // Busca en la hoja "Componentes " todas las filas cuya columna Sku (C)
 // coincida EXACTO con el sku dado.
 function buscarComponentesPorSkuExacto(sku) {
-  var hoja = encontrarHoja(HOJA_COMPONENTES, ['componente']);
-  if (!hoja) return [];
-  var ultimaFila = hoja.getLastRow();
-  if (ultimaFila < 2) return [];
-  var datos = hoja.getRange(2, 1, ultimaFila - 1, 5).getValues(); // A:E
+  var datos = datosDeCatalogo('componentes');
   var skuBuscado = sku.toString().trim();
   var opciones = [];
   for (var i = 0; i < datos.length; i++) {
@@ -554,6 +562,26 @@ function buscarComponentesPorSkuExacto(sku) {
     }
   }
   return opciones;
+}
+
+// Los catálogos (Componentes, Lista de Productos, Maq y Tons) se leen UNA
+// sola vez por ejecución y se guardan aquí; leer una hoja es lo más lento.
+var CACHE_CATALOGOS = {};
+function datosDeCatalogo(cual) {
+  if (CACHE_CATALOGOS[cual]) return CACHE_CATALOGOS[cual];
+  var def = {
+    componentes: [HOJA_COMPONENTES, ['componente'], 2, 1, 5],
+    productos:   [HOJA_LISTA_PRODUCTOS, ['lista', 'producto'], 2, COL_LISTA_PRODUCTOS_SKU, 2],
+    maquinas:    [HOJA_MAQ_TONS, ['maq', 'ton'], 4, 1, COL_MAQ_ESTATUS]
+  }[cual];
+  var datos = [];
+  var hoja = encontrarHoja(def[0], def[1]);
+  if (hoja) {
+    var ultimaFila = hoja.getLastRow();
+    if (ultimaFila >= def[2]) datos = hoja.getRange(def[2], def[3], ultimaFila - def[2] + 1, def[4]).getValues();
+  }
+  CACHE_CATALOGOS[cual] = datos;
+  return datos;
 }
 
 // La "familia" de un SKU es todo lo que va antes del último guion.
@@ -710,9 +738,11 @@ function llenarFilasDeOrden(sheet, fila, n, op, maquina, sku, componente, import
   asegurarEstructuraMaestro(sheet);
   aplicarFormatoFilas(sheet, fila, n);
   aplicarListasFilas(sheet, fila, n);
-  for (var c = 0; c < COLUMNAS_ENTRADA.length; c++) {
-    sheet.getRange(fila, COLUMNAS_ENTRADA[c], n, 1).clearContent();
-  }
+  // OP, Máquina y Sku se escriben abajo; solo se vacía lo que no se escribe.
+  sheet.getRange(fila, COL_MATERIAL, n, 1).clearContent();
+  sheet.getRange(fila, COL_CANTIDAD, n, 2).clearContent();   // Cantidad y Color
+  if (!componente) sheet.getRange(fila, COL_COMPONENTE, n, 1).clearContent();
+  if (!importante) sheet.getRange(fila, COL_IMPORTANTE, n, 1).clearContent();
   escribirColumna(sheet, fila, COL_OP, n, op);
   var maqNumero = Number(maquina);
   escribirColumna(sheet, fila, COL_MAQ, n, (maquina !== '' && !isNaN(maqNumero)) ? maqNumero : maquina);
@@ -1279,17 +1309,31 @@ function borrarHistorial() {
 function restaurarListasEnFilas(sheet, filaIni, filaFin) {
   var n = filaFin - filaIni + 1;
   var datos = sheet.getRange(filaIni, 1, n, COL_COMPONENTE).getValues();
-  var cache = {};
-  for (var i = 0; i < n; i++) {
-    if (datos[i][COL_OP - 1] === '') continue;
-    var fila = filaIni + i;
-    aplicarListasFilas(sheet, fila, 1);
+  var skuDe = function (i) {
     var sku = datos[i][COL_SKU - 1];
-    if (sku !== '' && !esPlaceholderSku(sku)) {
-      var clave = sku.toString();
-      if (!cache[clave]) cache[clave] = opcionesDeComponente(clave);
-      aplicarValidacionComponente(sheet.getRange(fila, COL_COMPONENTE), cache[clave]);
+    return (datos[i][COL_OP - 1] === '' || sku === '' || esPlaceholderSku(sku)) ? null : sku.toString();
+  };
+  var cache = {};
+  var i = 0;
+  while (i < n) {
+    if (datos[i][COL_OP - 1] === '') { i++; continue; }
+    // Bloque de filas seguidas que tienen OP: sus listas se ponen de una vez.
+    var j = i;
+    while (j + 1 < n && datos[j + 1][COL_OP - 1] !== '') j++;
+    aplicarListasFilas(sheet, filaIni + i, j - i + 1);
+    // Dentro del bloque, las filas seguidas con el mismo SKU comparten opciones.
+    var a = i;
+    while (a <= j) {
+      var sku = skuDe(a);
+      var b = a;
+      while (b + 1 <= j && skuDe(b + 1) === sku) b++;
+      if (sku !== null) {
+        if (!cache[sku]) cache[sku] = opcionesDeComponente(sku);
+        aplicarValidacionComponente(sheet.getRange(filaIni + a, COL_COMPONENTE, b - a + 1, 1), cache[sku]);
+      }
+      a = b + 1;
     }
+    i = j + 1;
   }
 }
 
@@ -1312,7 +1356,7 @@ function repararListas() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(HOJA_MAESTRO);
   if (!sheet) { SpreadsheetApp.getUi().alert('No encontré la hoja "' + HOJA_MAESTRO + '".'); return; }
-  asegurarEstructuraMaestro(sheet);
+  asegurarEstructuraMaestro(sheet, true);
   var ultima = ultimaFilaConDatos(sheet);
   if (ultima >= FILA_INICIO) restaurarListasEnFilas(sheet, FILA_INICIO, ultima);
   limpiarFormatoReserva(sheet);
@@ -1331,6 +1375,7 @@ function onEdit(e) {
   var filaIni = Math.max(rango.getRow(), FILA_INICIO);
   var filaFin = Math.min(rango.getLastRow(), sheet.getMaxRows());
   if (filaIni > filaFin || filaFin - filaIni > 50) return; // pegados enormes: no lo hacemos en vivo
+  if (colIni > COL_IMPORTANTE) return; // a la derecha de la R no hay listas ni nada que revisar
 
   // Al pegar (Ctrl+V) Google borra la lista desplegable de esas celdas:
   // si a alguna celda editada le falta su lista, se vuelven a poner.
@@ -1545,14 +1590,26 @@ function hojaPlantilla(ss) {
 // Pone las fórmulas en TODAS las filas del Maestro (las filas insertadas
 // llegan sin fórmula) y vuelve a alinear la lista de Componente de cada
 // fila con su fila de "Lista Componentes".
-function asegurarEstructuraMaestro(sheet) {
+// Bloques de columnas seguidas con fórmula: C, F, H, K-Q y S-U.
+var BLOQUES_FORMULA_MAESTRO = [[3, 1], [6, 1], [8, 1], [11, 7], [19, 3]];
+
+// Pone las fórmulas en las filas del Maestro donde FALTAN (las filas recién
+// insertadas llegan sin fórmula) y vuelve a alinear la lista de Componente
+// de cada fila con su fila de "Lista Componentes".
+// todo = true: las vuelve a poner en todas las filas (botón Reparar).
+function asegurarEstructuraMaestro(sheet, todo) {
   var ss = sheet.getParent();
   var filas = sheet.getMaxRows() - FILA_INICIO + 1;
   var plantilla = hojaPlantilla(ss);
   if (filas < 1 || !plantilla) return;
-  COLS_FORMULA_MAESTRO.forEach(function (c) {
-    plantilla.getRange(2, c).copyTo(sheet.getRange(FILA_INICIO, c, filas, 1),
-                                    SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+
+  var tramos = todo ? [[FILA_INICIO, filas]] : tramosSinFormula(sheet, filas);
+  if (tramos.length > 10) tramos = [[FILA_INICIO, filas]];   // muy salteado: mejor todo de una vez
+  tramos.forEach(function (t) {
+    BLOQUES_FORMULA_MAESTRO.forEach(function (b) {
+      plantilla.getRange(2, b[0], 1, b[1]).copyTo(sheet.getRange(t[0], b[0], t[1], b[1]),
+                                                  SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+    });
   });
 
   var lista = asegurarListaComponentes(sheet);
@@ -1571,10 +1628,39 @@ function asegurarEstructuraMaestro(sheet) {
   rangoComp.setDataValidations(reglas);
 }
 
+// Tramos [primeraFila, cuántas] de filas del Maestro donde alguna columna de
+// fórmula está vacía (sin fórmula y sin valor). Se lee todo en dos llamadas.
+function tramosSinFormula(sheet, filas) {
+  var c0 = COLS_FORMULA_MAESTRO[0];
+  var ancho = COLS_FORMULA_MAESTRO[COLS_FORMULA_MAESTRO.length - 1] - c0 + 1;
+  var rango = sheet.getRange(FILA_INICIO, c0, filas, ancho);
+  return tramosVacios(rango.getFormulas(), rango.getValues(),
+                      COLS_FORMULA_MAESTRO.map(function (c) { return c - c0; }), FILA_INICIO);
+}
+
+function tramosVacios(formulas, valores, columnas, primeraFila) {
+  var tramos = [];
+  var ini = -1;
+  for (var i = 0; i < formulas.length; i++) {
+    var falta = columnas.some(function (k) { return formulas[i][k] === '' && valores[i][k] === ''; });
+    if (falta) {
+      if (ini < 0) ini = i;
+    } else if (ini >= 0) {
+      tramos.push([primeraFila + ini, i - ini]);
+      ini = -1;
+    }
+  }
+  if (ini >= 0) tramos.push([primeraFila + ini, formulas.length - ini]);
+  return tramos;
+}
+
 // Prepara la hoja oculta "Lista Componentes" (la crea si falta) con tantas
 // filas como el Maestro y sus fórmulas. Devuelve la hoja, o null si no hay
 // plantilla para sacar las fórmulas.
+var LISTA_COMP_REVISADA = null;   // {filas, hoja}: ya revisada en esta ejecución
 function asegurarListaComponentes(maestro) {
+  var filasMaestro = maestro.getMaxRows();
+  if (LISTA_COMP_REVISADA && LISTA_COMP_REVISADA.filas === filasMaestro) return LISTA_COMP_REVISADA.hoja;
   var ss = maestro.getParent();
   var plantilla = hojaPlantilla(ss);
   if (!plantilla) return null;
@@ -1589,18 +1675,20 @@ function asegurarListaComponentes(maestro) {
   if (lista.getMaxColumns() < LISTA_COMP_COLUMNAS) {
     lista.insertColumnsAfter(lista.getMaxColumns(), LISTA_COMP_COLUMNAS - lista.getMaxColumns());
   }
-  var faltan = maestro.getMaxRows() - lista.getMaxRows();
+  var faltan = filasMaestro - lista.getMaxRows();
   if (faltan > 0) lista.insertRowsAfter(lista.getMaxRows(), faltan);
 
-  var filas = maestro.getMaxRows() - FILA_INICIO + 1;
+  var filas = filasMaestro - FILA_INICIO + 1;
   if (filas < 1) return lista;
   var destino = lista.getRange(FILA_INICIO, 1, filas, LISTA_COMP_COLUMNAS);
-  var actual = destino.getFormulas();
-  var completa = actual.every(function (f) { return f[0] !== '' && f[LISTA_COMP_COLUMNAS - 1] !== ''; });
+  // Las fórmulas se copian por filas completas: basta revisar la primera columna.
+  var completa = lista.getRange(FILA_INICIO, 1, filas, 1).getFormulas()
+    .every(function (f) { return f[0] !== ''; });
   if (!completa) {
     plantilla.getRange(4, 1, 1, LISTA_COMP_COLUMNAS).copyTo(destino, SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
     lista.getRange(FILA_INICIO, 1, filas, LISTA_COMP_OPCIONES + 1).setNumberFormat('@');
   }
+  LISTA_COMP_REVISADA = { filas: filasMaestro, hoja: lista };
   return lista;
 }
 
@@ -1640,8 +1728,10 @@ function actualizarHojasVisibles(maestro) {
   var conOrden = {};
   leerOrdenes(maestro).forEach(function (o) { conOrden[o.op] = true; });
   var activa = ss.getActiveSheet().getName();
+  var porNombre = {};
+  ss.getSheets().forEach(function (h) { porNombre[h.getName()] = h; });
   for (var n = 1; n <= HOJAS_DE_ORDEN; n++) {
-    var hoja = hojaDeOrden(ss, n);
+    var hoja = porNombre[(n < 10 ? '0' : '') + n];
     if (!hoja) continue;
     try {
       if (conOrden[n]) {
