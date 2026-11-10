@@ -748,10 +748,13 @@ function llenarFilasDeOrden(sheet, fila, n, op, maquina, sku, componente, import
   escribirColumna(sheet, fila, COL_MAQ, n, (maquina !== '' && !isNaN(maqNumero)) ? maqNumero : maquina);
   escribirColumna(sheet, fila, COL_SKU, n, sku);
 
+  // El componente se escribe ANTES de poner su lista: la lista sale de
+  // fórmulas ("Lista Componentes") que todavía no se han recalculado con el
+  // SKU nuevo, y Google rechazaría el valor ("infringe las reglas de validación").
   var rangoComp = sheet.getRange(fila, COL_COMPONENTE, n, 1);
   rangoComp.clearDataValidations();
-  if (sku) aplicarValidacionComponente(rangoComp, opcionesDeComponente(sku.toString()));
   if (componente) escribirColumna(sheet, fila, COL_COMPONENTE, n, componente);
+  if (sku) aplicarValidacionComponente(rangoComp, opcionesDeComponente(sku.toString()));
   if (importante) escribirColumna(sheet, fila, COL_IMPORTANTE, n, importante);
   actualizarHojasVisibles(sheet);
 }
@@ -1012,6 +1015,9 @@ function compactarOrdenes(ss, sheet, ordenDeseado, inicio) {
   var primeraFila = ordenes[0].fila;
   var totalFilas = 0;
   ordenadas.forEach(function (o) { totalFilas += o.n; });
+  // Las listas de Componente se quitan antes de reescribir (se vuelven a
+  // poner abajo): dependen de fórmulas que aún no ven los SKU en su nuevo lugar.
+  sheet.getRange(primeraFila, COL_COMPONENTE, totalFilas, 1).clearDataValidations();
   for (var c = 0; c < COLUMNAS_ENTRADA.length; c++) {
     var col = COLUMNAS_ENTRADA[c];
     var columna = [];
@@ -1413,11 +1419,13 @@ function actualizarComponentesPorSkuEnHoja(sheet, fila) {
     return;
   }
 
+  // Primero el valor y después la lista (ver llenarFilasDeOrden).
+  celdaComponente.clearDataValidations();
+  if (opciones.length === 1) celdaComponente.setValue(opciones[0].codigo);
   aplicarValidacionComponente(celdaComponente, opciones);
   var etiqueta = resultado.generico ? ('📋 Genéricos de la familia "' + familiaDeSku(sku.toString()) + '"') : '📋 Componentes de este SKU';
 
   if (opciones.length === 1) {
-    celdaComponente.setValue(opciones[0].codigo);
     var titulo = resultado.generico ? '✅ Componente genérico asignado' : '✅ Componente asignado';
     SpreadsheetApp.getActiveSpreadsheet().toast(opciones[0].codigo + ' — ' + opciones[0].nombre, titulo, 6);
   } else {
